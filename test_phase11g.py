@@ -79,6 +79,7 @@ class PerformanceTests(unittest.TestCase):
                 for table in ('equipment','skills','ferias_weapons'):
                     db.execute(f'CREATE TABLE {table}(id INTEGER)')
                     db.execute(f'INSERT INTO {table} VALUES (1)')
+            db.close()  # sqlite context commits; explicitly release the Windows file handle.
             with TestClient(create_app(p)) as c:
                 self.assertTrue(c.get('/api/health').json()['ready'])
                 with patch('web_api.connect', side_effect=AssertionError('should use cached health')):

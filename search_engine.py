@@ -191,7 +191,10 @@ class Searcher:
     # Score only skills actually active in the independent evaluator.
     def achieved(self, report, sid, pt):
         if sid.startswith('normal:'):
-            return (any(s['id']==sid and s['status']=='active' and self.reaches(s['threshold'] or 0,pt) for s in report['skills'])
+            # Overlap describes redundant effects, not failed point activation.
+            # Still require this family's own tier: composite effects cannot stand in
+            # for explicitly requested points, and overflow/wrong-weapon never pass.
+            return (any(s['id']==sid and s['status'] in ('active','overlap') and self.reaches(s['threshold'] or 0,pt) for s in report['skills'])
                     or any(s['id']==sid and s.get('effective',True) and self.reaches(s.get('threshold',0),pt) for s in report['automatic']))
         return any(s['id']==sid and s['level']>=pt and s['has_base_skill'] is not False for s in report['zenith'])
 
@@ -234,10 +237,15 @@ class Searcher:
         r=hit['evaluation']; wanted=self.requirements(req['required']); opt=self.optional_requirements(req)
         actual={s['id']:s['points'] for s in r['skills']}; actual.update({s['id']:s['raw_points'] for s in r['zenith']})
         optional=[{'id':sid,'threshold':pt,'weight':weight,'achieved':self.achieved(r,sid,pt)} for (sid,pt),weight in opt.items()]
+        stages=0
+        for (sid,pt),weight in opt.items():
+            tiers=[x for x in self.e.levels[sid] if self.selectable(x) and (x['points']<0)==(pt<0)]
+            stages+=weight*sum(self.achieved(r,sid,x['points']) for x in tiers)/max(1,len(tiers))
         surplus=sum(max(0,(actual.get(sid,0)-pt)*(1 if pt>0 else -1)) for sid,pt in wanted.items())
-        active=sum(s['status']=='active' and ((s['threshold'] or 0)>0 or s['level_ja']=='青魂') for s in r['skills'])
+        active=sum(s['status'] in ('active','overlap') and ((s['threshold'] or 0)>0 or s['level_ja']=='青魂') for s in r['skills'])
         spare=sum(a['capacity']-a['used']-a.get('sigils',0) for a in r['slots']['equipment'] if a.get('mode','decoration') in ('shared','decoration'))
         return {'optional':optional,'optional_score':sum(s['weight'] for s in optional if s['achieved']),
+                'optional_count':sum(s['achieved'] for s in optional),'optional_stage_score':stages,
                 'active_normal_skills':active,'required_surplus':surplus,'free_jewel_slots':spare,
                 'new_jewels':hit['new_jewels'], 'stat_mode':constraints(req)[1], **{('defense' if k=='defense' else 'res_'+k):r['defense_stats'][constraints(req)[1]][k] for k in STATS}, 'resistance_sum':sum(r['defense_stats'][constraints(req)[1]][k] for k in ELEMENTS) if all(r['defense_stats'][constraints(req)[1]][k] is not None for k in ELEMENTS) else None}
 
@@ -248,7 +256,7 @@ class Searcher:
         def key(h):
             m=h['metrics']; o=m['optional_score']; a=m['active_normal_skills']; s=m['required_surplus']; j=m['new_jewels']
             return {'minimal_jewels':(j,-o,-a,s), 'optional':(-o,j,-a,s), 'max_skills':(-a,-o,j,s), 'surplus':(s,j,-o,-a), 'defense':(-(m['defense'] if m['defense'] is not None else -100000),j,-o,-a), 'resistance':(-(m['resistance_sum'] if m['resistance_sum'] is not None else -100000),j,-o,-a)}[mode]
-        hits.sort(key=key)
+        hits.sort(key=lambda h:(key(h),-h['metrics']['optional_count'],-h['metrics']['optional_stage_score'],self.build_key(h['build'])))
         for i,h in enumerate(hits,1): h['rank']=i
         return hits
 
@@ -292,6 +300,9 @@ class Searcher:
         full['search_strategy']='adaptive'; full['search_passes']=first['search_passes']+[{'pool':'full','status':full['status'],'count':len(full['results'])}]
         for k in ('attempts','rejected','duplicates'):
             full[k]=full.get(k,0)+first.get(k,0)
+        full['rejection_reasons']=dict(Counter(first.get('rejection_reasons',{}))+Counter(full.get('rejection_reasons',{})))
+        full['rejection_samples']=(first.get('rejection_samples',[])+full.get('rejection_samples',[]))[:20]
+        full['rejection_log']=[{'pass':'prioritized',**entry} for entry in first.get('rejection_log',[])]+[{'pass':'full',**entry} for entry in full.get('rejection_log',[])]
         full['elapsed_seconds']=round(time.monotonic()-start,3)
         return full
 
@@ -354,7 +365,7 @@ class Searcher:
         fast_mode=bool(req.get('_fast_armor_cap'))
         direction={sid:(1 if pt>0 else -1)/abs(pt) for sid,pt in wanted.items()}
         weights=defaultdict(float,{sid:v*8 for sid,v in direction.items()})
-        for (sid,pt),weight in optional.items(): weights[sid]+=(1 if pt>0 else -1)*min(weight,5)/abs(pt)
+        for (sid,pt),weight in optional.items(): weights[sid]+=(1 if pt>0 else -1)*weight/abs(pt)
         for sid in targets-set(wanted):
             if sid not in weights: weights[sid]=.04
         for sid,pt in forbidden.items(): weights[sid]-=(1 if pt>0 else -1)*.08
@@ -365,14 +376,14 @@ class Searcher:
             if pt>0: v=max(v,self.auto[eid].get(sid,0))
             return v*(1 if pt>0 else -1)
         def item_score(eid):
-            return (sum(v*weights.get(sid,0) for sid,v in self.points[eid].items())
+            return (sum((min(v,abs(wanted[sid])) if sid in wanted and wanted[sid]>0 and v>0 else v)*weights.get(sid,0) for sid,v in self.points[eid].items())
                     +sum(v*weights.get(sid,0) for sid,v in self.zen[eid].items())
                     +sum(v*max(0,weights.get(sid,0)) for sid,v in self.auto[eid].items()))
         def shortlist(rows,cap,score):
             # Retain top overall and a small slice for every required family, including negative thresholds.
             # This is only the fast pass; full search restores every eligible item.
             chosen={a[0]:a for a in heapq.nlargest(cap,rows,key=score)}
-            for sid,pt in wanted.items():
+            for sid,pt in set(wanted.items())|set(optional):
                 for a in heapq.nlargest(12,rows,key=lambda a:contribution(a[0],sid,pt)):
                     if contribution(a[0],sid,pt)>0: chosen[a[0]]=a
             return list(chosen.values())
@@ -575,9 +586,14 @@ class Searcher:
             big=pt-lower; i=model.var(cost=-cost)
             constraint=Counter(row); constraint[i]-=big
             model.add(constraint,low=pt-k-big)
-        if objective in ('optional','max_skills'):
+        if optional:
             # One optional score point dominates the cost of any extra jewels/cuffs.
             for (sid,pt),weight in optional.items(): reward(sid,pt,100*weight)
+            # Stages break equal weighted attainment scores, including useful progress
+            # toward a selected tier. They never become feasibility constraints.
+            for (sid,pt),weight in optional.items():
+                tiers=[x for x in self.e.levels[sid] if self.selectable(x) and (x['points']<0)==(pt<0)]
+                for tier in tiers: reward(sid,tier['points'],weight/max(1,len(tiers)*(sum(optional.values())+1)))
         if objective=='max_skills':
             # Count positive ordinary skill families, excluding other weapon secrets.
             reward_cost=100*(sum(optional.values())+1)
@@ -626,6 +642,7 @@ class Searcher:
             # Leave one ordinary slot for the required skill itself.
             model.add(row,high=11+constant[extension]-fixed_reached)
 
+        rejection_reasons=Counter(); rejection_samples=[]; rejection_log=[]
         results=list(initial_hits); seen_builds={self.build_key(h['build']) for h in results}; seen_effects={self.effect_key(h['build'],h['evaluation']) for h in results} if req.get('dedupe_effects') else set(); duplicates=0; rejected=0; attempts=0; status='time_limit'
         # Seed the expanded pass with already validated solutions; exclude their armor in diversity mode.
         if req.get('diverse_armor'):
@@ -684,13 +701,27 @@ class Searcher:
                 else: duplicates+=1
             else:
                 rejected+=1
+                reasons=[{'reason':'invalid_equipment','detail':error} for error in report['errors']]
+                if not satisfies(report,req): reasons.append({'reason':'stat_constraints'})
+                for sid,pt in wanted.items():
+                    if not self.achieved(report,sid,pt):
+                        s=normal.get(sid,zenith.get(sid,{}))
+                        reasons.append({'reason':'required_'+s.get('status','not_reached'), 'skill':sid,'required':pt,
+                                        'points':s.get('points',s.get('raw_points',0)), 'threshold':s.get('threshold'),
+                                        'overlap_by':s.get('overlap_by',[])})
+                if self.forbidden_hit(report,forbidden): reasons.append({'reason':'forbidden_skill'})
+                if not reasons: reasons.append({'reason':'bounty_restriction'})
+                rejection_reasons.update(r['reason'] for r in reasons)
+                rejection_log.append({'attempt':attempts,'reasons':reasons})
+                # Bounded samples retain concrete reproducible builds without unbounded output.
+                if len(rejection_samples)<20: rejection_samples.append({'attempt':attempts,'reasons':reasons,'build':build})
                 for sid in wanted:
                     if normal.get(sid,{}).get('status')=='overflow' and not auto_vars[sid] and (wanted[sid]<0 or fixed_auto.get(sid,0)<wanted[sid]): learn_overflow(sid)
             # Exclude the complete decision vector, not just armor; alternate jewels remain searchable.
             ones=sum(x[i] for i in decisions); model.add({i:-1 if x[i] else 1 for i in decisions},low=1-ones)
             if sol.status==1: status='time_limit'; break
         if len(results)>=limit: status='result_limit'
-        return {'status':status,'objective':objective,'results':self.rank(results,req),'attempts':attempts,'rejected':rejected,'duplicates':duplicates,'pool_counts':pool_counts,'eligible_armor':eligible_armor,'eligible_jewels_in_mode':eligible_jewel_count,'eligible_cuffs_in_mode':eligible_cuff_count,'pool_mode':'full' if req.get('full_jewel_pool') or objective=='max_skills' else 'prioritized' if req.get('_fast_armor_cap') else 'focused','model_variables':len(model.cost),'model_constraints':len(model.rows),'slot_cuts':len(slot_cuts),'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,'notes':['Only selected candidate pools and supported abilities; defense/resistance scope is armor plus supported flat skills and optional external effects.','Focused pools include Zenith prerequisites and their composite providers; full pool includes all supported jewels and cuffs. Both may miss solutions. Objectives are relaxed point attainment followed by actual activation ranking, not global game-optimal results.','Rain and unresolved evaluator rules are not fully verified. No result is not proof of game impossibility.']}
+        return {'status':status,'objective':objective,'results':self.rank(results,req),'attempts':attempts,'rejected':rejected,'rejection_reasons':dict(rejection_reasons),'rejection_samples':rejection_samples,'rejection_log':rejection_log,'duplicates':duplicates,'pool_counts':pool_counts,'eligible_armor':eligible_armor,'eligible_jewels_in_mode':eligible_jewel_count,'eligible_cuffs_in_mode':eligible_cuff_count,'pool_mode':'full' if req.get('full_jewel_pool') or objective=='max_skills' else 'prioritized' if req.get('_fast_armor_cap') else 'focused','model_variables':len(model.cost),'model_constraints':len(model.rows),'slot_cuts':len(slot_cuts),'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,'notes':['Only selected candidate pools and supported abilities; defense/resistance scope is armor plus supported flat skills and optional external effects.','Focused pools include Zenith prerequisites and their composite providers; full pool includes all supported jewels and cuffs. Both may miss solutions. Objectives are relaxed point attainment followed by actual activation ranking, not global game-optimal results.','Rain and unresolved evaluator rules are not fully verified. No result is not proof of game impossibility.']}
 
 
     # Apply physical weapon filters consistently to fixed and automatically selected weapons.
@@ -744,7 +775,7 @@ class Searcher:
     def search_weapons(self, req):
         start=time.monotonic(); seconds=float(req.get('seconds',15)); limit=int(req.get('limit',3)); max_groups=req.get('weapon_group_limit'); per_group=req.get('results_per_weapon_group',limit if req.get('search_strategy')=='adaptive' else 1)
         if not math.isfinite(seconds) or not 0<seconds<=300 or not 1<=limit<=30 or (max_groups is not None and (type(max_groups) is not int or not 1<=max_groups<=100)) or type(per_group) is not int or not 1<=per_group<=30: raise ValueError('invalid search limits')
-        groups,skipped=self.weapon_groups(req); hits=[]; reports=[]; attempts=rejected=0
+        groups,skipped=self.weapon_groups(req); hits=[]; reports=[]; attempts=rejected=0; rejection_reasons=Counter(); rejection_log=[]; rejection_samples=[]
         selected=groups if max_groups is None else groups[:max_groups]
         # A single allowed group must not silently cap a multi-result search at one.
         # Keep an explicit per-group cap and the existing multi-group distribution.
@@ -762,6 +793,9 @@ class Searcher:
             sub['seconds']=min(remaining,max(2.0,remaining/(len(selected)-i))); sub['limit']=min(limit,per_group)
             # One representative per group: equivalent alternatives remain visible to the user.
             result=self.search_with_strategy(sub); attempts+=result['attempts']; rejected+=result['rejected']
+            rejection_reasons.update(result.get('rejection_reasons',{}))
+            rejection_log.extend({'weapon_group':i,**entry} for entry in result.get('rejection_log',[]))
+            rejection_samples.extend(result.get('rejection_samples',[])[:max(0,20-len(rejection_samples))])
             reports.append({'page':r['page'],'anchor':r['anchor'],'status':result['status'],'equivalent_count':len(rows)})
             for h in result['results']:
                 h['weapon_group']={'representative':{'name':r['name_source'],'id':r['upstream_id'],'level':r['level']},'equivalent_count':len(rows),
@@ -782,7 +816,7 @@ class Searcher:
             unique.setdefault(result_key(h),h)
         ranked=self.rank(list(unique.values()),req)[:limit]
         status='partial_weapon_search' if len(reports)<len(groups) or any(r['status']!='model_exhausted' for r in reports) else 'weapon_groups_searched'
-        return {'status':status,'objective':req.get('objective','minimal_jewels'),'results':ranked,'attempts':attempts,'rejected':rejected,'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,
+        return {'status':status,'objective':req.get('objective','minimal_jewels'),'results':ranked,'attempts':attempts,'rejected':rejected,'rejection_reasons':dict(rejection_reasons),'rejection_log':rejection_log,'rejection_samples':rejection_samples,'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,
                 'weapon_groups':len(groups),'weapon_groups_searched':len(reports),'weapon_groups_untested':len(groups)-len(reports),'weapon_rows_skipped':skipped,'group_reports':reports,
                 'notes':['Grouped by skill contribution and slot behavior, not damage; representative prefers non-discrepant data, then displayed attack.','Weapon filters and bounded group budget apply; unhandled effects/special sockets excluded. Rain availability not verified.']}
 

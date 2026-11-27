@@ -51,7 +51,7 @@ class WorkerJob:
 
 def attach_worker(proc):
     # Some managed Windows environments disallow nested jobs. Keep normal cancellation as fallback.
-    if os.name != 'nt':
+    if os.name != 'nt' or type(proc.pid) is not int or proc.pid<=0:
         return None
     handle = process = None
     try:

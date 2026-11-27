@@ -1,0 +1,194 @@
+{
+  "non-ravi": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "job": "剣士",
+      "armor": {
+        "head": {
+          "item": "head:0:8374",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2334",
+            "jewel:0:2334",
+            "jewel:0:2334"
+          ]
+        },
+        "body": {
+          "item": "body:0:8179",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2334",
+            "jewel:0:2334",
+            "jewel:0:2276"
+          ]
+        },
+        "arm": {
+          "item": "arm:0:8008",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2276",
+            "jewel:0:2276",
+            "jewel:0:2221"
+          ]
+        },
+        "waist": {
+          "item": "waist:0:8026",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2221",
+            "jewel:0:2221",
+            "jewel:0:2221"
+          ]
+        },
+        "leg": {
+          "item": "leg:0:7674",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2221",
+            "jewel:0:2181",
+            "jewel:0:2181"
+          ]
+        }
+      },
+      "cuffs": [
+        "cuff:0:1940",
+        "cuff:1:1180"
+      ]
+    },
+    "required": [
+      {
+        "skill": "磁斬鎚技【磁星】"
+      },
+      {
+        "skill": "不退ノ構"
+      },
+      {
+        "skill": "剛撃+6"
+      },
+      {
+        "skill": "一閃+3"
+      }
+    ]
+  },
+  "true-secret": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "cuffs": [],
+      "job": "剣士",
+      "armor": {
+        "head": {
+          "item": "head:0:8374",
+          "level": "L1",
+          "jewels": []
+        },
+        "body": {
+          "item": "body:0:8179",
+          "level": "L1",
+          "jewels": []
+        },
+        "arm": {
+          "item": "arm:0:8008",
+          "level": "L1",
+          "jewels": []
+        },
+        "waist": {
+          "item": "waist:0:8026",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2275",
+            "jewel:0:2275"
+          ]
+        },
+        "leg": {
+          "item": "leg:0:7674",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2275",
+            "jewel:0:2275",
+            "jewel:0:2275"
+          ]
+        }
+      }
+    },
+    "required": [
+      {
+        "skill": "磁斬鎚技【磁星】"
+      }
+    ]
+  },
+  "optional": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "armor": {
+        "head": {
+          "item": "フィンスZPヘッド",
+          "level": "L1",
+          "jewels": [
+            "真磁星珠・白虎",
+            "真磁星珠・白虎"
+          ]
+        },
+        "body": {
+          "item": "グリディZXメイル",
+          "level": "L1",
+          "jewels": [
+            "真磁星珠・白虎",
+            "真磁星珠・白虎",
+            "真磁星珠・白虎"
+          ]
+        },
+        "arm": {
+          "item": "バルラZXアーム",
+          "level": "L1",
+          "jewels": [
+            "真磁星珠・白虎",
+            "真磁星珠・白虎",
+            "真磁星珠・白虎"
+          ]
+        },
+        "waist": {
+          "item": "グラビZXコイル",
+          "level": "L1",
+          "jewels": [
+            "真磁星珠・白虎",
+            "真磁星珠・白虎",
+            "真磁星珠・白虎"
+          ]
+        },
+        "leg": {
+          "item": "プリブZPフット",
+          "level": "L1",
+          "jewels": [
+            "真磁星珠・白虎",
+            "真磁星珠・白虎",
+            "真磁星珠・白虎"
+          ]
+        }
+      },
+      "cuffs": []
+    },
+    "choices": [
+      [
+        "jewel:0:126",
+        "normal:1670",
+        10,
+        "笛吹き名人"
+      ],
+      [
+        "jewel:0:127",
+        "normal:1680",
+        10,
+        "とんずら"
+      ]
+    ]
+  }
+}

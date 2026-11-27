@@ -121,9 +121,20 @@ def helper_main(executable, key, current, profile, reset_dll_path, child_env):
 
 
 def run_handoff(root, work, key, current, profile, reset_dll_path, child_env):
+    # Own and close this handler even if startup fails. Embedded callers and
+    # Windows cleanup must not retain a locked profile log after the helper exits.
+    handler=logging.FileHandler(profile.parent/'launcher.log', encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+    LOG.addHandler(handler)
+    try:
+        return _run_handoff(root, work, key, current, profile, reset_dll_path, child_env)
+    finally:
+        LOG.removeHandler(handler)
+        handler.close()
+
+
+def _run_handoff(root, work, key, current, profile, reset_dll_path, child_env):
     from desktop_lifecycle import SingleInstance
-    logging.basicConfig(filename=str(profile.parent/'launcher.log'), level=logging.INFO,
-                        format='%(asctime)s %(levelname)s %(message)s')
     from update_progress import StartupProgress
     accepted = None
 

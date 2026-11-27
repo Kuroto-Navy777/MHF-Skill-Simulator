@@ -56,8 +56,9 @@ class SubmissionTests(unittest.TestCase):
     def test_actual_diagnostics(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); (root/'VERSION').write_text('1.0.0-rc.3')
-            # A hard link is safe here because the diagnostics opens the DB read-only.
-            os.link(os.environ['MHF_TEST_DB'],root/w.MASTER)
+            # Copy also supports a DB and TEMP on different Windows volumes.
+            import shutil
+            shutil.copy2(os.environ['MHF_TEST_DB'],root/w.MASTER)
             for name in ('web_api.py','search_engine.py','web/index.html','web/app.js','web/style.css'):
                 p=root/name;p.parent.mkdir(exist_ok=True);p.touch()
             with patch.object(w,'dependencies_ok',return_value=True):

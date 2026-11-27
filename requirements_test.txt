@@ -1,0 +1,5 @@
+-r requirements.txt
+cryptography>=44,<48
+httpx>=0.28,<1
+httpx2>=2.16,<3
+playwright>=1.56,<2
