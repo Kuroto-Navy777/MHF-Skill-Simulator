@@ -1,0 +1,3 @@
+# Optional developer measurements; not required for the application.
+zstandard==0.25.0
+pyroaring==1.2.0

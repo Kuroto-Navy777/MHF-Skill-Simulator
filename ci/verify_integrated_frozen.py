@@ -24,6 +24,8 @@ def verify(archive,db,report_path):
   exe=folder/'MHF_SkillSimulator/app/MHFDesktop.exe';c=CArchiveReader(str(exe))
   pyz=c.open_embedded_archive(next(n for n in c.toc if n.endswith('.pyz')))
   modules=['search_engine','search_contract','skill_engine','weapon_effects','candidate_validation','candidate_reader','candidate_pool','candidate_service','web_api']
+  if (ROOT/'VERSION').read_text().strip()>='1.4.0':
+   modules+=['calculation_identity','search_archive','search_precompute','data_packages','precompute_distribution','precompute_idle']
   for name in modules:
    assert normalized(pyz.extract(name))==normalized(compile((ROOT/(name+'.py')).read_text(encoding='utf-8'),name+'.py','exec',optimize=0)),name
   result['compiled_modules_match']=modules
@@ -44,6 +46,11 @@ def verify(archive,db,report_path):
      actual,why=validate(reader,prepared,h['build']);assert actual is not None,why;assert actual==h['evaluation']
      assert h['build']['weapon'].get('page')
     result['cases'][name]={k:r[k] for k in ['status','elapsed_seconds','distinct_armor','rejected','integrated_weapon']}
+  if (ROOT/'VERSION').read_text().strip()>='1.4.0':
+   report=folder/'precompute-smoke.json'
+   subprocess.run([str(exe),'--self-test','--db',str(db.resolve()),'--precompute-check','--report',str(report)],check=True,timeout=150)
+   smoke=json.loads(report.read_text(encoding='utf-8'));assert smoke['ok'],smoke
+   result['precompute']=smoke['checks']['precompute_restart']
  result['ok']=True;report_path.write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8');print(json.dumps(result,ensure_ascii=False))
 
 if __name__=='__main__':

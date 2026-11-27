@@ -35,6 +35,7 @@ def smoke_test(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--db', type=Path)
+    parser.add_argument('--precompute-check', action='store_true')
     args = parser.parse_args(argv)
     result = {'ok': False, 'frozen': bool(getattr(sys, 'frozen', False)), 'checks': {}}
     try:
@@ -82,6 +83,28 @@ def smoke_test(argv):
                     raise RuntimeError(f'Search smoke test failed: {state}')
                 result['checks']['api_search'] = True
                 result['checks']['counts'] = health['counts']
+            if args.precompute_check:
+                import tempfile,sqlite3
+                from candidate_service import CandidateService
+                from search_engine import Searcher
+                from unittest.mock import patch
+                with tempfile.TemporaryDirectory(prefix='mhf-frozen-index-') as folder:
+                    cache=Path(folder)/'cache.json';service=CandidateService(args.db,cache)
+                    try:
+                        service.prepare_index();service.index_thread.join(60)
+                        if service.index_status()['state']!='ready':raise RuntimeError('Frozen facts generation failed')
+                        service.ingest(payload,state['result']);environment=service.archive.worker_environment()
+                        with patch.dict(os.environ,environment),contextlib.closing(sqlite3.connect(args.db)) as db:
+                            import search_data
+                            search_data._CACHE.clear()
+                            compiled=Searcher(db)
+                            if not compiled.compiled_vectors_used:raise RuntimeError('Frozen compiled vectors not loaded')
+                        service.close();service=CandidateService(args.db,cache)
+                        with patch('skill_engine.Engine.evaluate',side_effect=AssertionError('Cached report recalculated')):
+                            cached=service.query(payload)
+                        if not cached['results']:raise RuntimeError('Frozen restart lost confirmed witnesses')
+                        result['checks']['precompute_restart']={'confirmed':cached['confirmed_builds'],'compiled_vectors':True}
+                    finally:service.close()
         result['ok'] = True
     except BaseException:
         result['error'] = traceback.format_exc()

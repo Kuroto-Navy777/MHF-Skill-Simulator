@@ -256,3 +256,15 @@ mhf-backup*.json
 .profile/
 profile/
 userdata/
+
+# Private derived search data and per-user cache integrity material
+*.csr
+*.search.sqlite*
+*.facts.sqlite*
+*.integrity-key
+*.facts-auth.json
+
+*.mhfchunk
+*.mhfpack
+*.building.sqlite*
+*.building.csr

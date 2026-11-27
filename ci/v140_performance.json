@@ -1,0 +1,464 @@
+{
+  "database": "private integrated DB; no source or derived rows included",
+  "population": {
+    "facts": {
+      "source_equipment": 48387,
+      "weapon_variants": 145861,
+      "skill_families": 220,
+      "vectors": 239742,
+      "armor_levels": 284319,
+      "cuff_classes": 9,
+      "cuff_class_pairs": 28,
+      "weapon_pattern_rows": 40,
+      "audit": {
+        "equipment": 1985,
+        "weapon": 8985
+      },
+      "csr_bytes": 3653924,
+      "generation_seconds": 5.432579,
+      "sqlite_bytes": 71925760
+    },
+    "population": {
+      "elapsed_seconds": 13.486134,
+      "weapons": {
+        "SnS": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "DB": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "GS": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "LS": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "Hammer": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "HH": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "Lance": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "GL": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "SA": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "Tonfas": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 58
+        },
+        "MS": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 59
+        },
+        "HBG": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 54
+        },
+        "LBG": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 54
+        },
+        "Bow": {
+          "generated_builds": 128,
+          "baseline_status": "result_limit",
+          "confirmed_patterns": 54
+        }
+      },
+      "archive": {
+        "state": "ready",
+        "statistics": {
+          "source_equipment": 48387,
+          "weapon_variants": 145861,
+          "skill_families": 220,
+          "vectors": 239742,
+          "armor_levels": 284319,
+          "cuff_classes": 9,
+          "cuff_class_pairs": 28,
+          "weapon_pattern_rows": 40,
+          "audit": {
+            "equipment": 1985,
+            "weapon": 8985
+          },
+          "csr_bytes": 3653924,
+          "generation_seconds": 5.432579,
+          "sqlite_bytes": 71925760
+        },
+        "witnesses": 1792,
+        "patterns": 801,
+        "proofs": 0,
+        "tasks": {},
+        "schema_version": 140,
+        "calculation_identity": "1e147311bd48ee49e483ccc82bbceee3feeba0f1b569deb6d78dd8e976a43124"
+      }
+    },
+    "packages": {
+      "all_weapons_download_bytes": 6712840,
+      "all_weapons_expanded_bytes": 77113728,
+      "rights": {
+        "status": "unverified",
+        "evidence": null
+      }
+    },
+    "total_seconds": 31.196536
+  },
+  "query_profile": {
+    "initialization_seconds": 0.012749599991366267,
+    "first_query_seconds": 0.32198410003911704,
+    "saved_builds": 1792,
+    "saved_patterns": 801,
+    "MS_confirmed_builds": 128,
+    "MS_distinct_armor": 128,
+    "warm_skill_list": {
+      "median_ms": 36.28769997158088,
+      "p95_ms": 38.17660000640899,
+      "cpu_seconds": 1.0625,
+      "repetitions": 30
+    },
+    "warm_skill_add": {
+      "median_ms": 2.6894999900832772,
+      "p95_ms": 3.090500016696751,
+      "cpu_seconds": 0.078125,
+      "repetitions": 30
+    },
+    "warm_skill_delete": {
+      "median_ms": 18.842100020265207,
+      "p95_ms": 20.72020003106445,
+      "cpu_seconds": 0.5625,
+      "repetitions": 30
+    },
+    "warm_candidates": {
+      "median_ms": 19.023300032131374,
+      "p95_ms": 21.150299988221377,
+      "cpu_seconds": 0.578125,
+      "repetitions": 30
+    },
+    "certainty": {
+      "states": {
+        "confirmed": 123,
+        "unknown": 273,
+        "proven_infeasible": 39
+      },
+      "targets": 435,
+      "resolved_fraction": 0.3724137931034483,
+      "scope": "MS automatic baseline; finite generated corpus, not total equipment combinations"
+    },
+    "solver_launches_during_queries": 0,
+    "integer_dictionary": {
+      "plain_json_bytes": 5334857,
+      "packed_CSR_bytes": 3653924,
+      "zlib_JSON_bytes": 712881,
+      "zlib_dictionary_JSON_bytes": 712710,
+      "dictionary_bytes": 32768,
+      "note": "Dictionary overhead must be included; vectors are exact signed integer IDs."
+    },
+    "working_set_mib": 94.594,
+    "peak_working_set_mib": 104.59,
+    "restart_first_query_ms": 341.1105000413954
+  },
+  "before_same_corpus": {
+    "version": "1.3.0",
+    "same_MS_corpus": 128,
+    "initialization_seconds": 0.03132970002479851,
+    "warm_skill_list": {
+      "median_ms": 17.213799990713596,
+      "p95_ms": 18.27140001114458
+    },
+    "warm_skill_add": {
+      "median_ms": 0.44109998270869255,
+      "p95_ms": 0.5531999631784856
+    },
+    "warm_skill_delete": {
+      "median_ms": 11.705000011716038,
+      "p95_ms": 12.662799970712513
+    },
+    "warm_candidates": {
+      "median_ms": 11.431799997808412,
+      "p95_ms": 11.951700027566403
+    },
+    "restart_first_query_ms": 594.0839000395499,
+    "restored_confirmed_builds": 128
+  },
+  "format_comparison": {
+    "codecs": {
+      "v140-final.search.facts.sqlite": [
+        {
+          "codec": "zlib",
+          "chunk_bytes": 0,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 15888030,
+          "compression_seconds": 5.160047,
+          "decompression_seconds": 0.122459,
+          "working_set_mib": 103.047,
+          "peak_working_set_mib": 240.086
+        },
+        {
+          "codec": "zlib",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 15915251,
+          "compression_seconds": 5.047215,
+          "decompression_seconds": 0.123138,
+          "working_set_mib": 173.266,
+          "peak_working_set_mib": 174.379
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 0,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 11721987,
+          "compression_seconds": 0.652067,
+          "decompression_seconds": 0.063497,
+          "working_set_mib": 99.496,
+          "peak_working_set_mib": 167.938
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 12493240,
+          "compression_seconds": 0.765241,
+          "decompression_seconds": 0.06066,
+          "working_set_mib": 171.457,
+          "peak_working_set_mib": 181.398
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 0,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 5788200,
+          "compression_seconds": 12.084469,
+          "decompression_seconds": 0.378527,
+          "working_set_mib": 93.637,
+          "peak_working_set_mib": 238.723
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 71925760,
+          "compressed_bytes": 6522704,
+          "compression_seconds": 9.993005,
+          "decompression_seconds": 0.414235,
+          "working_set_mib": 163.32,
+          "peak_working_set_mib": 188.832
+        }
+      ],
+      "v140-final.search.facts.csr": [
+        {
+          "codec": "zlib",
+          "chunk_bytes": 0,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 370566,
+          "compression_seconds": 0.825436,
+          "decompression_seconds": 0.004727,
+          "working_set_mib": 23.336,
+          "peak_working_set_mib": 30.496
+        },
+        {
+          "codec": "zlib",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 371233,
+          "compression_seconds": 0.813159,
+          "decompression_seconds": 0.00483,
+          "working_set_mib": 26.883,
+          "peak_working_set_mib": 28.82
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 0,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 404216,
+          "compression_seconds": 0.022625,
+          "decompression_seconds": 0.002857,
+          "working_set_mib": 23.488,
+          "peak_working_set_mib": 33.551
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 417988,
+          "compression_seconds": 0.02864,
+          "decompression_seconds": 0.002822,
+          "working_set_mib": 27.309,
+          "peak_working_set_mib": 36.758
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 0,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 148652,
+          "compression_seconds": 0.670239,
+          "decompression_seconds": 0.011143,
+          "working_set_mib": 23.508,
+          "peak_working_set_mib": 71.129
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 3653924,
+          "compressed_bytes": 167564,
+          "compression_seconds": 0.643421,
+          "decompression_seconds": 0.012609,
+          "working_set_mib": 26.645,
+          "peak_working_set_mib": 52.117
+        }
+      ],
+      "v140-final.search.sqlite": [
+        {
+          "codec": "zlib",
+          "chunk_bytes": 0,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 6320176,
+          "compression_seconds": 0.196439,
+          "decompression_seconds": 0.025779,
+          "working_set_mib": 34.523,
+          "peak_working_set_mib": 52.391
+        },
+        {
+          "codec": "zlib",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 6324130,
+          "compression_seconds": 0.194577,
+          "decompression_seconds": 0.025886,
+          "working_set_mib": 44.164,
+          "peak_working_set_mib": 45.797
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 0,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 5698335,
+          "compression_seconds": 0.084959,
+          "decompression_seconds": 0.005691,
+          "working_set_mib": 34.141,
+          "peak_working_set_mib": 44.074
+        },
+        {
+          "codec": "zstd",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 6048855,
+          "compression_seconds": 0.091019,
+          "decompression_seconds": 0.005288,
+          "working_set_mib": 44.113,
+          "peak_working_set_mib": 53.781
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 0,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 5214876,
+          "compression_seconds": 1.535344,
+          "decompression_seconds": 0.188901,
+          "working_set_mib": 33.887,
+          "peak_working_set_mib": 128.0
+        },
+        {
+          "codec": "lzma2",
+          "chunk_bytes": 1048576,
+          "raw_bytes": 9453568,
+          "compressed_bytes": 5678460,
+          "compression_seconds": 1.024073,
+          "decompression_seconds": 0.213477,
+          "working_set_mib": 43.305,
+          "peak_working_set_mib": 69.281
+        }
+      ]
+    },
+    "representations": {
+      "integer_bitsets": {
+        "build_seconds": 0.017549999989569187,
+        "serialized_bytes": 16266,
+        "median_ms": 0.18199998885393143,
+        "p95_ms": 0.186299963388592,
+        "retained_object_bytes": 24564
+      },
+      "roaring": {
+        "build_seconds": 0.01875260000815615,
+        "serialized_bytes": 12259,
+        "median_ms": 0.4948499845340848,
+        "p95_ms": 0.8696999866515398,
+        "retained_object_bytes": 15963
+      },
+      "zdd": {
+        "build_seconds": 0.043653500033542514,
+        "nodes": 1532,
+        "serialized_bytes": 18440,
+        "median_ms": 237.7204999793321,
+        "p95_ms": 238.66329999873415,
+        "retained_object_bytes": 298048
+      },
+      "bdd": {
+        "build_seconds": 0.05971579998731613,
+        "nodes": 29857,
+        "serialized_bytes": 367078,
+        "median_ms": 5307.138300035149,
+        "p95_ms": 5308.682999981102,
+        "retained_object_bytes": 5614560
+      }
+    },
+    "sparse_lookup": {
+      "rows": 512,
+      "sqlite": {
+        "median_ms": 15.887349989498034,
+        "p95_ms": 16.778599994722754
+      },
+      "mmap": {
+        "median_ms": 0.2645000349730253,
+        "p95_ms": 0.26649999199435115
+      },
+      "csr_bytes": 3653924
+    },
+    "observed_family": {
+      "patterns": 801,
+      "skill_tiers": 436,
+      "queries_per_repeat": 501,
+      "coverage_note": "Graphs describe only observed activation patterns, not all legal game combinations."
+    },
+    "versions": {
+      "pyroaring": "1.2.0",
+      "zstandard": "0.25.0"
+    },
+    "source_sizes": {
+      "v140-final.search.facts.sqlite": 71925760,
+      "v140-final.search.facts.csr": 3653924,
+      "v140-final.search.sqlite": 9453568
+    },
+    "memory_note": "retained_object_bytes uses recursive sys.getsizeof; excludes interpreter, allocator and transient build overhead; Roaring native size follows its __sizeof__."
+  },
+  "limitations": [
+    "Finite verified corpus, not all legal equipment combinations.",
+    "No derived database assets published: redistribution permission unverified.",
+    "Game co-execution not measured; priority/thread/load limits tested separately."
+  ]
+}

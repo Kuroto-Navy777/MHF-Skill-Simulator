@@ -228,6 +228,8 @@ class Engine:
         effective=dict(selected)
         for sid,x in automatic.items():
             if sid not in effective or effective[sid]['points']<x['points']: effective[sid]=x
+        for sid in automatic:
+            if self.skills[sid]['ja'] in WEAPON_SECRET.values() and self.skills[sid]['ja']!=WEAPON_SECRET[wt]:inactive_weapon.append(sid)
         for sid in inactive_weapon: effective.pop(sid,None)
         # Food can satisfy a direct skill, but does not supply a Zenith prerequisite.
         gear_effective=dict(effective)
@@ -306,7 +308,7 @@ class Engine:
         stats['armor_levels']=comparison(comparison_parts,stats)
         if physical_weapon is not None:
             stats['weapon_preview']=weapon_preview(ext,wt,physical_weapon['attack'],physical_weapon['affinity'])
-        report={'defense_stats':stats,'valid':not errors,'rain_verified':False,'no_known_issues':not warnings and not errors,'fully_verified':False,'configuration_warnings':sorted(set(warnings)),'errors':errors,'slots':{'capacity':slot_cap,'used':used,'g_armor_count':g_count,'cuff_used':cslots,'equipment':allocation},'skills':result,'zenith':zresult,'automatic':[{'id':sid,'ja':x['ja'],'en':x['en'],'source':'equipment','threshold':x['points'],'effective':sid not in suppressed} for sid,x in automatic.items()]+([{'id':meal['skill_id'],'ja':meal['ja'],'en':meal['en'],'source':'meal','threshold':meal['points'],'effective':meal['skill_id'] not in suppressed}] if meal else []),'relations':relations,'protection':protection}
+        report={'defense_stats':stats,'valid':not errors,'rain_verified':False,'no_known_issues':not warnings and not errors,'fully_verified':False,'configuration_warnings':sorted(set(warnings)),'errors':errors,'slots':{'capacity':slot_cap,'used':used,'g_armor_count':g_count,'cuff_used':cslots,'equipment':allocation},'skills':result,'zenith':zresult,'automatic':[{'id':sid,'ja':x['ja'],'en':x['en'],'source':'equipment','threshold':x['points'],'effective':sid not in suppressed and sid not in inactive_weapon} for sid,x in automatic.items()]+([{'id':meal['skill_id'],'ja':meal['ja'],'en':meal['en'],'source':'meal','threshold':meal['points'],'effective':meal['skill_id'] not in suppressed}] if meal else []),'relations':relations,'protection':protection}
         from activation import attained
         report['attained']=attained(report)
         return report

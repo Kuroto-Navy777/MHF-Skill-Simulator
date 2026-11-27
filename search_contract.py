@@ -83,14 +83,18 @@ class SearchContract:
             key=(sid,pt); result[key]=max(result.get(key,0),weight)
         return result
 
+    def supply_met(self,report,req):
+        from activation import supplied_points
+        return all(supplied_points(report,sid,req['zenith_sources'][sid])>=pt for sid,pt in self.requirements(req.get('required',[])).items() if sid in req.get('zenith_sources',{}))
+
     def metrics(self, hit, req):
         r=hit['evaluation']; wanted=self.requirements(req['required']); opt=self.optional_requirements(req)
         actual={s['id']:s['points'] for s in r['skills']}; actual.update({s['id']:s['raw_points'] for s in r['zenith']})
-        optional=[{'id':sid,'threshold':pt,'weight':weight,'achieved':self.achieved(r,sid,pt)} for (sid,pt),weight in opt.items()]
+        optional=[{'id':sid,'threshold':pt,'weight':weight,'achieved':self.achieved(r,sid,pt) and (sid not in req.get('zenith_sources',{}) or __import__('activation').supplied_points(r,sid,req['zenith_sources'][sid])>=pt)} for (sid,pt),weight in opt.items()]
         stages=0
         for (sid,pt),weight in opt.items():
             tiers=[x for x in self.e.levels[sid] if self.selectable(x) and (x['points']<0)==(pt<0)]
-            stages+=weight*sum(self.achieved(r,sid,x['points']) for x in tiers)/max(1,len(tiers))
+            stages+=weight*sum(self.achieved(r,sid,x['points']) and (sid not in req.get('zenith_sources',{}) or __import__('activation').supplied_points(r,sid,req['zenith_sources'][sid])>=abs(x['points'])) for x in tiers)/max(1,len(tiers))
         surplus=sum(max(0,(actual.get(sid,0)-pt)*(1 if pt>0 else -1)) for sid,pt in wanted.items())
         active=sum(s['status'] in ('active','overlap') and ((s['threshold'] or 0)>0 or s['level_ja']=='青魂') for s in r['skills'])
         spare=sum(a['capacity']-a['used']-a.get('sigils',0) for a in r['slots']['equipment'] if a.get('mode','decoration') in ('shared','decoration'))
@@ -126,6 +130,10 @@ class SearchContract:
             if 'weapon_candidates' in req and selector not in req['weapon_candidates']:raise ValueError('fixed weapon outside allowlist')
             req['weapon_candidates']=[selector];req['auto_weapon']=True
             req['weapon']={k:v for k,v in req['weapon'].items() if k in ('sigils','jewels')}
+        sources=req.get('zenith_sources',{})
+        if not isinstance(sources,dict):raise ValueError('invalid Zenith supply rules')
+        for sid,providers in sources.items():
+            if sid not in self.e.skills or not sid.startswith('zenith:') or not isinstance(providers,list) or not providers or any(p not in ('weapon','armor','jewel','cuff') for p in providers):raise ValueError('invalid Zenith supply source: '+str(sid))
         self.conflicts(req)
         req={k:v for k,v in req.items() if k!='_fast_armor_cap'}
         req=restrict_inventory(req,self.items,self.e.equipment)

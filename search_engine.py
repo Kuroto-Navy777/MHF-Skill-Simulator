@@ -129,8 +129,12 @@ class Searcher(SearchContract):
         self.by_kind=defaultdict(dict)
         for eid,row in self.items.items(): self.by_kind[row['kind']][eid]=row
         self.points, self.abilities, self.levels = defaultdict(dict), defaultdict(list), defaultdict(list)
-        for eid, sid, pt in db.execute('SELECT equipment_id,skill_id,points FROM equipment_skills'):
-            self.points[self.items[eid]['id']][self.e.skills[sid]['id']] = pt
+        from search_precompute import load_solver_vectors
+        compiled=load_solver_vectors(db,self.items,self.e.skills);self.compiled_vectors_used=compiled is not None
+        if compiled:self.points=compiled[0]
+        else:
+            for eid,sid,pt in db.execute('SELECT equipment_id,skill_id,points FROM equipment_skills'):
+                self.points[self.items[eid]['id']][self.e.skills[sid]['id']]=pt
         for eid, typ, val in db.execute('SELECT equipment_id,type_ja,value_ja FROM abilities'):
             self.abilities[self.items[eid]['id']].append((sys.intern(typ),sys.intern(val) if isinstance(val,str) else val))
         for eid, lv, slots, defense in db.execute('SELECT equipment_id,level,slots,defense FROM levels'):
@@ -139,19 +143,21 @@ class Searcher(SearchContract):
         self.armor_stats = ArmorStats(self.items)
         self.zen = defaultdict(dict)
         self.auto = defaultdict(dict)
-        for eid, abilities in self.abilities.items():
-            for typ,val in abilities:
-                if typ=='スキル発動':
-                    matches=self.e.level_names[('normal',val)]
-                    if len(matches)==1:
-                        x=matches[0]; sid=x['skill_id']
-                        self.auto[eid][sid]=max(self.auto[eid].get(sid,0),x['points'])
-                if typ in ('スキル強化','スキル枠拡張'):
-                    matches = self.e.level_names[('zenith',val)]
-                    if len(matches)==1:
-                        x=matches[0]; self.zen[eid][x['skill_id']]=self.zen[eid].get(x['skill_id'],0)+x['points']
+        if compiled:self.zen,self.auto=compiled[1],compiled[2]
+        else:
+            for eid, abilities in self.abilities.items():
+                for typ,val in abilities:
+                    if typ=='スキル発動':
+                        matches=self.e.level_names[('normal',val)]
+                        if len(matches)==1:
+                            x=matches[0]; sid=x['skill_id']
+                            self.auto[eid][sid]=max(self.auto[eid].get(sid,0),x['points'])
+                    if typ in ('スキル強化','スキル枠拡張'):
+                        matches = self.e.level_names[('zenith',val)]
+                        if len(matches)==1:
+                            x=matches[0]; self.zen[eid][x['skill_id']]=self.zen[eid].get(x['skill_id'],0)+x['points']
         self.providers,self.item_lookup=data_indices(self.items,self.points,self.zen,self.auto)
-        return {name:getattr(self,name) for name in ['items', 'by_kind', 'points', 'abilities', 'levels', 'armor_stats', 'zen', 'auto', 'providers', 'item_lookup']}
+        return {name:getattr(self,name) for name in ['items', 'by_kind', 'points', 'abilities', 'levels', 'armor_stats', 'zen', 'auto', 'providers', 'item_lookup','compiled_vectors_used']}
 
     # Include ordinary prerequisites and composite providers in the focused pool.
     def dependency_targets(self, targets):
@@ -189,6 +195,35 @@ class Searcher(SearchContract):
 
 
 
+    def feasibility(self,req):
+        start=time.monotonic();prepared=self.prepare_request(req)
+        for key in ('_seed_builds','_initial_hits','_excluded_armor_sets','_fast_armor_cap'):prepared.pop(key,None)
+        prepared.update(limit=1,objective='minimal_jewels',optional=[],full_jewel_pool=True,search_strategy='full',diverse_armor=False,_feasibility_only=True)
+        if prepared.get('auto_weapon'):prepared['integrated_weapon']=True
+        budget=float(prepared.get('seconds',15));prepared['seconds']=budget
+        first=None
+        if budget>=.25:
+            fast={**prepared,'full_jewel_pool':False,'_fast_armor_cap':240,'seconds':min(1.5,budget*.4)}
+            first=self.search_fixed(fast)
+            if first['results']:
+                first.update(status='confirmed',feasibility_only=True,elapsed_seconds=round(time.monotonic()-start,3));return first
+        prepared['seconds']=max(.05,budget-(time.monotonic()-start))
+        result=self.search_fixed(prepared)
+        if first:
+            for key in ('attempts','rejected'):result[key]+=first[key]
+        certificate=None
+        if not result['results'] and result['status']=='model_exhausted' and result.get('pool_mode')=='full':
+            from calculation_identity import calculation_identity,source_identity
+            name=self.db.execute('PRAGMA database_list').fetchone()[2]
+            certificate={'kind':'full_model_infeasible','scope':'supported_search_model','calculation':calculation_identity(),
+                'source':source_identity(name) if name else 'in-memory','variables':result['model_variables'],
+                'constraints':result['model_constraints'],'pool_counts':result['pool_counts'],'rejected':result['rejected']}
+            result['status']='proven_infeasible';result['certificate']=certificate
+        elif result['results']:result['status']='confirmed'
+        else:result['status']='unknown'
+        result['feasibility_only']=True;result['elapsed_seconds']=round(time.monotonic()-start,3)
+        return result
+
     def search(self, req):
         try:return self._search(req)
         except (ValueError,KeyError,TypeError) as exc:
@@ -224,7 +259,7 @@ class Searcher(SearchContract):
         result['armor_groups']=group_hits(result['results']);result.update(counts(result['results']))
         result['reused_witnesses']=len(valid)
         result['retained_witnesses']=sum(h.get('reused_witness',False) for h in result['results'])
-        result['data_cache_hit']=self.data_cache_hit;result['data_load_seconds']=round(self.data_load_seconds,6)
+        result['compiled_vectors_used']=self.compiled_vectors_used;result['data_cache_hit']=self.data_cache_hit;result['data_load_seconds']=round(self.data_load_seconds,6)
         existing=list(self.witnesses.pop(scope,[]))
         unique={self.build_key(b):b for b in existing+[h['build'] for h in result['results']]}
         self.witnesses[scope]=list(unique.values())[-128:]
@@ -540,6 +575,19 @@ class Searcher(SearchContract):
                 if val: plus(skill_rows[sid],vs,val)
         for i,values in weapon_points.items():
             for sid,val in values.items():skill_rows[sid][i]+=val
+        supply_rows=defaultdict(Counter);supply_constants=Counter()
+        source_rules=req.get('zenith_sources',{})
+        from activation import supplied_points
+        for sid,providers in source_rules.items():
+            supply_constants[sid]=supplied_points(baseline,sid,providers)
+            if 'jewel' in providers:
+                for keys in fixed_jewels.values():
+                    for eid in keys:supply_constants[sid]+=self.points[eid].get(sid,0)+self.zen[eid].get(sid,0)
+            for eid,vs in item_vars.items():
+                kind=self.items[eid]['kind'];provider='armor' if kind in PARTS else kind
+                if provider in providers:plus(supply_rows[sid],vs,self.points[eid].get(sid,0)+self.zen[eid].get(sid,0))
+            if 'weapon' in providers:
+                for i,values in weapon_points.items():supply_rows[sid][i]+=values.get(sid,0)
         # Automatic effects are alternatives to point activation, not actual points.
         # Relax only the requirement rows; bans and slot cuts still use raw points.
         fixed_auto={}; fixed_gear_auto={}
@@ -553,7 +601,7 @@ class Searcher(SearchContract):
         for i,values in weapon_auto.items():
             for sid,pt in values.items():auto_vars[sid].append((pt,{i:1}))
         def attainment(sid,pt,include_meal=True):
-            row=Counter(skill_rows[sid]); k=constant[sid]
+            row=Counter(supply_rows[sid] if sid in source_rules else skill_rows[sid]); k=supply_constants[sid] if sid in source_rules else constant[sid]
             if pt<0:
                 return Counter({i:-v for i,v in row.items()}),-k
             lower,_=bounds.interval(row,k)
@@ -752,7 +800,7 @@ class Searcher(SearchContract):
                 for choices in armor_vars.values():
                     for i,(eid,lv) in choices.items():model.cost[i]=base_cost[i]+5*frequency[eid]/len(results)
             solve_start=time.monotonic()
-            model.feasibility_first=joint and len(wanted)>=10 and not results and attempts==0
+            model.feasibility_first=bool(req.get('_feasibility_only')) or (joint and len(wanted)>=10 and not results and attempts==0)
             sol=model.solve(seconds-(time.monotonic()-start)); attempts+=1
             solve_seconds+=time.monotonic()-solve_start
             if sol.x is None or sol.status not in (0,1):
@@ -776,7 +824,7 @@ class Searcher(SearchContract):
             report=self.e.evaluate(build)
             validation_seconds+=time.monotonic()-validation_start
             normal={s['id']:s for s in report['skills']}; zenith={s['id']:s for s in report['zenith']}
-            ok=report['valid'] and satisfies(report,req) and all(self.achieved(report,sid,pt) for sid,pt in wanted.items()) and not self.forbidden_hit(report,forbidden)
+            ok=report['valid'] and satisfies(report,req) and all(self.achieved(report,sid,pt) for sid,pt in wanted.items()) and not self.forbidden_hit(report,forbidden) and self.supply_met(report,req)
             if br and any(banned_skill(s['ja'],br,wt,WEAPON_SECRET.values()) and s['status'] in ('active','overlap') for s in report['skills']): ok=False
             if br and any(banned_skill(self.e.skills[s['id']]['ja'],br,wt,WEAPON_SECRET.values()) for s in report['automatic']): ok=False
             if br and ok: report['bounty']=public_rules(req['bounty'])
@@ -801,6 +849,7 @@ class Searcher(SearchContract):
                         reasons.append({'reason':'required_'+s.get('status','not_reached'), 'skill':sid,'required':pt,
                                         'points':s.get('points',s.get('raw_points',0)), 'threshold':s.get('threshold'),
                                         'overlap_by':s.get('overlap_by',[])})
+                if not self.supply_met(report,req):reasons.append({'reason':'zenith_supply_source'})
                 if self.forbidden_hit(report,forbidden): reasons.append({'reason':'forbidden_skill'})
                 if not reasons: reasons.append({'reason':'bounty_restriction'})
                 rejection_reasons.update(r['reason'] for r in reasons)
@@ -998,7 +1047,11 @@ def main(argv=None):
                     # Progress is advisory: a Windows file lock must not abort search.
                     pass
             searcher.progress = publish_progress
-        result=searcher.probe(req,probe.get('candidates'),probe.get('seconds',30),probe.get('candidate_limit',24),probe.get('offset',0)) if probe is not None else searcher.search(req)
+        result=searcher.probe(req,probe.get('candidates'),probe.get('seconds',30),probe.get('candidate_limit',24),probe.get('offset',0)) if probe is not None else searcher.feasibility(req) if req.get('_feasibility_only') else searcher.search(req)
+    import os,hmac,hashlib
+    channel=os.environ.pop('MHF_PROOF_CHANNEL_KEY',None)
+    if channel and result.get('certificate'):
+        result['proof_auth']=hmac.new(bytes.fromhex(channel),json.dumps(result['certificate'],sort_keys=True,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
     output=json.dumps(result,ensure_ascii=False,indent=2)
     if a.out: a.out.write_text(output,encoding='utf-8')
     else: print(output)

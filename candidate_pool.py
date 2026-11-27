@@ -9,7 +9,7 @@ import json
 from collections import OrderedDict,defaultdict
 from pathlib import Path
 import time
-from activation import attained
+from activation import attained,scoped_attained
 from candidate_groups import armor_key,counts,group_hits
 
 VERSION=120
@@ -53,11 +53,11 @@ class CandidatePool:
     def _index(self,scope):
         postings=defaultdict(lambda:defaultdict(int))
         for i,h in enumerate(scope['hits'].values()):
-            for sid,pt in attained(h['evaluation']).items():postings[sid][pt]|=1<<i
+            for sid,pt in scoped_attained(h['evaluation'],scope.get('sources')).items():postings[sid][pt]|=1<<i
         scope['postings']={sid:dict(tiers) for sid,tiers in postings.items()}
 
     def ingest(self,req,hits):
-        key=condition_key(req);scope=self._scope(key);changed=False
+        key=condition_key(req);scope=self._scope(key);scope['sources']=req.get('zenith_sources',{});changed=False
         for h in hits:
             if not isinstance(h,dict) or not h.get('evaluation',{}).get('valid'):continue
             clean={k:copy.deepcopy(h[k]) for k in ('build','evaluation','metrics','display','new_jewels','rank') if k in h}

@@ -42,3 +42,10 @@ main{max-width:1440px}.workspace-tabs{display:flex;flex-wrap:wrap;gap:8px;margin
 .live-panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px}.live-panel small{flex-basis:100%}.live-skill-count{font-variant-numeric:tabular-nums;min-width:42px;text-align:right;font-size:12px;color:var(--muted)}.live-skill-count.warning{color:var(--warn)}
 
 .live-sample-list{flex-basis:100%;overflow-wrap:anywhere}#liveCompact{flex:1;min-width:180px}
+
+.skill-list-row.skill-confirmed .skill-choice{border-color:#56b98b;background:rgba(56,150,104,.12)}
+.skill-list-row.skill-confirmed .live-skill-count{color:#87d9ac}
+.skill-list-row.skill-proven .skill-choice{border-color:#db7070;background:rgba(185,62,62,.15)}
+.skill-list-row.skill-proven .live-skill-count{color:#f29a9a}
+.skill-list-row.skill-unknown .live-skill-count{color:#a8b4c1}
+#zenithSourcePanel:empty{display:none}

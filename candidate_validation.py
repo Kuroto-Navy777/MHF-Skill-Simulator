@@ -76,6 +76,7 @@ def validate(searcher,req,build):
             for key,n in limit.items(): require(counts[eid(key,kind)]<=n,'owned '+kind+' limit')
         report=e.evaluate(build)
         require(report['valid'],'equipment validation')
+        require(s.supply_met(report,req),'Zenith supply source')
         require(satisfies(report,req),'stats')
         for sid,pt in s.requirements(req['required']).items(): require(s.achieved(report,sid,pt),'required '+sid)
         require(not s.forbidden_hit(report,s.conflicts(req)),'forbidden skill')

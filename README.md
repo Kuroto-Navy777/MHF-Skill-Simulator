@@ -1,6 +1,16 @@
 # MHF-Skill-Simulator
 An unofficial skill and equipment simulator for Monster Hunter Frontier ZZ (MHF-ZZ), featuring build optimization, skill calculations, and Hunting Road support.
 
+## Version 1.4.0
+
+計算済み検索DBと永続候補索引を追加しました。スキル操作は保存済み構成の絞り込みを優先し、未確定条件を低負荷時に追加探索します。未対応データ・時間切れは不成立にしません。
+
+- [設計・性能・容量比較・未対応範囲](V140_REPORT.md)
+- [利用方法・ローカル生成・武器種別データ配布](V140_GUIDE.md)
+- [再現可能な測定値](ci/v140_performance.json)
+
+元DB・計算済みDBは再配布許諾未確認のため含めません。計算データは利用者のローカルDBから生成します。
+
 ## Version 1.2.0
 
 - [検索エンジン・操作性の調査と検証結果](V120_REPORT.md)

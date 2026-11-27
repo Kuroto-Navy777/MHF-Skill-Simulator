@@ -2,3 +2,4 @@
 -r requirements_desktop.txt
 pyinstaller>=6.12,<7
 cryptography>=44,<48
+zstandard==0.25.0

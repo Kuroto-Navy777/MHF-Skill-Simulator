@@ -1,5 +1,7 @@
 """Local browser API. Run on loopback only; no game or remote network access."""
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -74,6 +76,7 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
         try:
             yield
         finally:
+            idle.close()
             with lock:
                 for j in jobs.values():
                     try:
@@ -278,10 +281,15 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
     # At most one active job; retain a bounded number of finished jobs in temporary files.
     @app.post('/api/search')
     def search(payload:dict):
+        return start_search(payload)
+
+    def start_search(payload,internal=False):
         if len(json.dumps(payload))>100000:
             raise HTTPException(400,'request too large')
         # A client-provided identifier makes retries safe if the POST response is lost.
         payload=dict(payload)
+        if not internal:
+            payload.pop('_index_job',None);payload.pop('_precompute_task',None)
         requested=payload.pop('_job_id',None)
         if requested is not None and (not isinstance(requested,str) or not re.fullmatch(r'[a-f0-9]{32}',requested)):
             raise HTTPException(400,'invalid search job ID')
@@ -291,6 +299,10 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
                 if existing.get('client_request',json.loads(existing['request'].read_text(encoding='utf-8')))!=payload:
                     raise HTTPException(409,'search job ID already used for different conditions')
                 return {'id':requested,'status':'running'}
+            if not internal:
+                for j in jobs.values():
+                    if j.get('index_job') and j['process'].poll() is None:
+                        stop_worker(j,graceful=True);j['cancelled']=True
             if any(j['process'].poll() is None and not j.get('cancelled') for j in jobs.values()):
                 raise HTTPException(409,'another search is running')
             # Reap completed jobs and their Windows job handles even if no client polled them.
@@ -315,10 +327,12 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
                 # Preserve the worker's existing detailed input-error behavior.
                 pass
             req.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')
-            low_priority = bool(payload.get('live_preview') or (game_priority and game_priority()))
+            vector_env=candidates.archive.worker_environment() if candidates.archive else {}
+            proof_key=os.urandom(32)
+            low_priority = bool(internal or payload.get('live_preview') or (game_priority and game_priority()))
             with (open(os.devnull, 'wb') if getattr(sys, 'frozen', False) else err.open('wb')) as log:
-                proc=subprocess.Popen(search_command(ROOT, db_path, req, out, err),cwd=ROOT,stdout=log,stderr=log,creationflags=creation_flags(low_priority),env={**os.environ,'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'})
-            jobs[key]={'process':proc,'client_request':client_request,'db_identity':candidates.identity,'request':req,'output':out,'error':err,'started':time.monotonic(),'guard':attach_worker(proc)}
+                proc=subprocess.Popen(search_command(ROOT, db_path, req, out, err),cwd=ROOT,stdout=log,stderr=log,creationflags=creation_flags(low_priority),env={**os.environ,**vector_env,'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1','MHF_PROOF_CHANNEL_KEY':proof_key.hex()})
+            jobs[key]={'proof_key':proof_key,'index_job':bool(internal),'process':proc,'client_request':client_request,'db_identity':candidates.identity,'request':req,'output':out,'error':err,'started':time.monotonic(),'guard':attach_worker(proc)}
         return {'id':key,'status':'running'}
 
     @app.get('/api/search/{key}')
@@ -363,6 +377,14 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
             for h in result.get('results',[]):
                 item=h.get('witness',h)
                 if 'build' in item: item['display']=enrich(db,item['build'])
+        if result.get('certificate'):
+            cert=result['certificate'];signature=hmac.new(j['proof_key'],json.dumps(cert,sort_keys=True,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
+            trusted=hmac.compare_digest(signature,result.get('proof_auth','')) and candidates.archive and cert.get('calculation')==candidates.archive.calculation and cert.get('source')==j.get('db_identity')
+            if trusted:
+                cert=candidates.accept_proof(j.get('client_request',{}),cert);result['certificate']=cert
+                if not cert.get('coverage_complete'):result['status']='data_incomplete'
+            else:result['status']='unknown';result.pop('certificate',None)
+            result.pop('proof_auth',None)
         if not j.get('ingested'):
             try:candidates.ingest(j.get('client_request',{}),result);j['ingested']=True
             except (OSError,sqlite3.Error,ValueError,KeyError,TypeError):pass
@@ -380,6 +402,45 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
                 release_job(j)
             return {'status':'cancelled' if j.get('cancelled') else 'done'}
 
+    @app.post('/api/precompute/prepare')
+    def prepare_precomputed():
+        try:return candidates.prepare_index()
+        except (OSError,ValueError,sqlite3.Error):raise HTTPException(503,'calculation index unavailable')
+
+    @app.get('/api/precompute/status')
+    def precompute_status():
+        try:return {**candidates.index_status(),'idle_phase':idle.phase}
+        except (OSError,ValueError,sqlite3.Error):raise HTTPException(503,'calculation index unavailable')
+
+    @app.post('/api/precompute/activity')
+    def precompute_activity(payload:dict):
+        if len(json.dumps(payload))>150000:raise HTTPException(400,'context too large')
+        try:
+            request=payload['request'];targets=payload.get('targets',[])[:1000]
+            candidates._ready().prepare_request(request)
+            return idle.activity(request,targets,payload.get('idle_seconds',0),payload.get('enabled',True))
+        except (ValueError,KeyError,TypeError):raise HTTPException(400,'invalid calculation context')
+
+    @app.get('/api/precompute/data/catalog')
+    def data_catalog():
+        try:return distribution.check()
+        except (OSError,ValueError,KeyError,TypeError) as exc:raise HTTPException(400,str(exc)) from exc
+
+    @app.post('/api/precompute/data/download')
+    def data_download(payload:dict):
+        try:return distribution.start(payload['weapon_type'])
+        except (ValueError,KeyError) as exc:raise HTTPException(400,str(exc)) from exc
+
+    @app.get('/api/precompute/data/download/{key}')
+    def data_download_status(key:str):
+        try:return distribution.status(key)
+        except KeyError:raise HTTPException(404,'data job not found')
+
+    from precompute_distribution import DataDistribution
+    distribution=DataDistribution(candidates,(ROOT/'VERSION').read_text(encoding='utf-8-sig').strip(),ROOT)
+    from precompute_idle import IdlePrecomputer
+    idle=IdlePrecomputer(candidates,lambda request:start_search(request,True),status,cancel)
+    app.state.idle_precompute=idle
     return app
 
 if __name__=='__main__':

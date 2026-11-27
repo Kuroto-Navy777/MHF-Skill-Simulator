@@ -19,7 +19,7 @@ REQUIRED_BUILD_FILES = (
     'launcher.py', 'launcher_update.py', 'desktop_safety.py', 'desktop_info.py', 'desktop_entry.py', 'desktop.py',
     'desktop_lifecycle.py', 'worker_control.py', 'update_progress.py',
     'update_core.py', 'release_check.py', 'runtime_paths.py', 'windows_setup.py',
-    'weapon_effects.py', 'activation.py', 'search_contract.py', 'candidate_reader.py', 'search_data.py', 'candidate_validation.py', 'candidate_pool.py',
+    'precompute_distribution.py','data_packages.py','calculation_identity.py','search_precompute.py','search_archive.py','precompute_idle.py', 'weapon_effects.py', 'activation.py', 'search_contract.py', 'candidate_reader.py', 'search_data.py', 'candidate_validation.py', 'candidate_pool.py',
     'candidate_groups.py', 'candidate_service.py',
     'installer_guard.py', 'web_api.py', 'search_engine.py', 'release_sign.py', 'release_preflight.py',
     'web/app.js', 'web/favicon.ico', 'VERSION', 'release_source.json',
@@ -35,9 +35,9 @@ def validate_build_sources(root):
 
 
 
-def build_command(root, staging, executable=sys.executable):
+def build_command(root, staging, executable=sys.executable, public_key=None):
     # Onedir keeps the launch path stable and makes UI-only updates possible.
-    return [executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
+    args = [executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
             '--windowed', '--noupx', '--name', 'MHFDesktop',
             '--distpath', str(staging / 'dist'), '--workpath', str(staging / 'work'),
             '--specpath', str(staging), '--paths', str(root),
@@ -45,7 +45,10 @@ def build_command(root, staging, executable=sys.executable):
             '--collect-all', 'webview', '--collect-all', 'pythonnet',
             '--collect-submodules', 'uvicorn', '--hidden-import', 'clr',
             '--hidden-import', 'pystray._win32', '--hidden-import', 'desktop_safety',
-            '--hidden-import', 'worker_control', '--hidden-import', 'desktop_info', str(root / 'desktop_entry.py')]
+            '--hidden-import', 'worker_control', '--hidden-import', 'desktop_info']
+    key=Path(public_key) if public_key else root/'update_public_key.bin'
+    if key.is_file():args+=['--add-data',str(key)+os.pathsep+'.']
+    return args+[str(root/'desktop_entry.py')]
 
 
 def launcher_command(root, staging, public_key=None, executable=sys.executable):
@@ -67,6 +70,7 @@ def stage_files(root, target, db=None):
     for name in ('VERSION', 'example_auto_search.json', 'THIRD_PARTY_NOTICES.txt', 'release_source.json'):
         shutil.copy2(root / name, target / name)
     shutil.copytree(root / 'web', target / 'web')
+    if (root/'licenses').is_dir():shutil.copytree(root/'licenses',target/'licenses')
     shutil.copy2(root / 'PORTABLE_README.txt', target / 'README.txt')
     if db is not None:
         from windows_setup import check_db
@@ -157,7 +161,7 @@ def main():
             parser.error('Release already exists; use a new output folder.')
     with tempfile.TemporaryDirectory(prefix='mhf-build-', dir=out) as temp:
         stage = Path(temp)
-        subprocess.run(build_command(ROOT, stage), check=True, cwd=ROOT)
+        subprocess.run(build_command(ROOT, stage, public_key=args.public_key), check=True, cwd=ROOT)
         target = stage / 'dist' / 'MHFDesktop'
         exe = target / 'MHFDesktop.exe'
         if not exe.is_file():
@@ -166,6 +170,8 @@ def main():
             if binary.read(2) != b'MZ':
                 raise RuntimeError('Invalid Windows executable')
         stage_files(ROOT, target)
+        from calculation_identity import fingerprint_document
+        (target/'CALCULATION_FINGERPRINT.json').write_text(json.dumps(fingerprint_document(ROOT),sort_keys=True)+'\n',encoding='utf-8')
         # Record actual build dependency versions for reproducibility and diagnosis.
         (target / 'BUILD_DEPENDENCIES.txt').write_bytes(subprocess.check_output([sys.executable, '-m', 'pip', 'freeze']))
         smoke = stage / 'smoke.json'

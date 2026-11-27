@@ -35,7 +35,7 @@ def audit_index():
     for name in filter(None,files):
         p=Path(name)
         if (p.suffix.lower() in {'.pem','.key','.pfx','.p12','.db','.sqlite','.sqlite3','.zip','.xml'} or
-            p.name.lower().endswith(('.sqlite-wal','.sqlite-shm','.db-wal','.db-shm','.sqlite3-wal','.sqlite3-shm')) or
+            p.name.lower().endswith(('.mhfchunk','.mhfpack','.integrity-key','.csr','.sqlite-wal','.sqlite-shm','.db-wal','.db-shm','.sqlite3-wal','.sqlite3-shm')) or
             any(part.startswith('.env') for part in p.parts)):
             raise ValueError(f'Private or unlicensed file in Git index: {name}')
         data=(ROOT/p).read_bytes()
@@ -115,11 +115,6 @@ def main():
     a.db=a.db.resolve(); a.public_key=a.public_key.resolve(); a.private_key=a.private_key.resolve(); a.previous=a.previous.resolve()
     public=a.public_key.read_bytes()
     if len(public)!=32: p.error('Expected existing 32-byte Ed25519 public key')
-    password=unlock_password(a.gui_password,a.version)
-    key=serialization.load_pem_private_key(a.private_key.read_bytes(),password=password.encode())
-    del password
-    actual=key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw)
-    if actual!=public: raise ValueError('Existing signing key does not match pinned public key')
     # Verify continuity with the previous signed public release before building.
     from release_sign import inventory
     from update_core import verify_manifest
@@ -131,12 +126,17 @@ def main():
     env={**os.environ,'MHF_TEST_DB':str(a.db.resolve()),'PYTHONUTF8':'1'}
     run(sys.executable,'-m','unittest','discover','-v',env=env)
     run('node','--test',*[path.name for path in ROOT.glob('test_*.mjs')])
-    run(sys.executable,'verify_v130_browser.py',env=env)
+    run(sys.executable,'verify_v140_browser.py' if version_key(a.version)>=version_key('1.4.0') else 'verify_v130_browser.py',env=env)
     out=ROOT/'release'/a.version
     run(sys.executable,'build_windows.py','--db',a.db,'--pair','--public-key',a.public_key,'--out',out)
     archive=out/f'MHF_SkillSimulator_{a.version}_win_x64_no_DB.zip'
     if version_key(a.version)>=version_key('1.3.0'):
         run(sys.executable,'ci/verify_integrated_frozen.py','--archive',archive,'--db',a.db,'--report',out/'frozen-integrated-check.json')
+    password=unlock_password(a.gui_password,a.version)
+    key=serialization.load_pem_private_key(a.private_key.read_bytes(),password=password.encode())
+    del password
+    actual=key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw)
+    if actual!=public: raise ValueError('Existing signing key does not match pinned public key')
     sign_release(archive,key,a.previous)
     upload=out/'upload'
     prepare_upload(archive,a.public_key,upload,a.previous)
