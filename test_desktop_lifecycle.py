@@ -75,6 +75,9 @@ class LifecycleTests(unittest.TestCase):
     def test_startup_command_quotes_spaces(self):
         folder = self.root / 'MHF Test'
         folder.mkdir()
+        # GitHub Windows TEMP may contain an 8.3 alias; use the same physical
+        # path spelling as startup_command while keeping the exact quote checks.
+        folder = folder.resolve()
         exe = folder / 'python.exe'
         exe.with_name('pythonw.exe').touch()
         command = startup_command(folder, exe, frozen=False)
