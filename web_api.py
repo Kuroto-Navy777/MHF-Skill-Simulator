@@ -53,7 +53,7 @@ def enrich(db, build):
     if w.get('virtual') is True:
         weapon={'virtual':True,'ja':'仮想武器スロット','en':'Virtual weapon slots','slots':w['slots'],'slot_mode':w['slot_mode']}
     if 'page' in w:
-        row=db.execute(f'SELECT v.name_source,{JA} AS name_ja,COALESCE({JA},v.name_source) AS ja,v.name_source AS en,v.weapon_type,v.upstream_id,v.rarity,v.attack,v.slots_reported,v.slot_mode,v.level FROM {JOIN} WHERE v.weapon_type=? AND v.page=? AND v.anchor=?',(build['weapon_type'],w['page'],w['anchor'])).fetchone()
+        row=db.execute(f'SELECT v.name_source,{JA} AS name_ja,COALESCE({JA},v.name_source) AS ja,v.name_source AS en,v.weapon_type,v.upstream_id,v.rarity,v.attack,v.slots_reported,v.slot_mode,v.level,v.intrinsic_raw,v.category FROM {JOIN} WHERE v.weapon_type=? AND v.page=? AND v.anchor=?',(build['weapon_type'],w['page'],w['anchor'])).fetchone()
         weapon=dict(row) if row else None
     return {'items':items,'weapon':weapon}
 

@@ -131,10 +131,12 @@ def main():
     env={**os.environ,'MHF_TEST_DB':str(a.db.resolve()),'PYTHONUTF8':'1'}
     run(sys.executable,'-m','unittest','discover','-v',env=env)
     run('node','--test',*[path.name for path in ROOT.glob('test_*.mjs')])
-    run(sys.executable,'verify_v120_browser.py',env=env)
+    run(sys.executable,'verify_v130_browser.py',env=env)
     out=ROOT/'release'/a.version
     run(sys.executable,'build_windows.py','--db',a.db,'--pair','--public-key',a.public_key,'--out',out)
     archive=out/f'MHF_SkillSimulator_{a.version}_win_x64_no_DB.zip'
+    if version_key(a.version)>=version_key('1.3.0'):
+        run(sys.executable,'ci/verify_integrated_frozen.py','--archive',archive,'--db',a.db,'--report',out/'frozen-integrated-check.json')
     sign_release(archive,key,a.previous)
     upload=out/'upload'
     prepare_upload(archive,a.public_key,upload,a.previous)

@@ -96,7 +96,7 @@ class Engine:
             raise ValueError('invalid weapon type/job/sex')
         ext=normalize(build.get('external'))
         totals, zenith = Counter(), Counter()
-        details = defaultdict(list)
+        details = defaultdict(list); zenith_details=defaultdict(list)
         automatic, free = {}, set()
         warnings, errors, allocation = [], [], []
         g_count = 0
@@ -114,7 +114,7 @@ class Engine:
                 if typ in ('スキル強化','スキル枠拡張'):
                     matches = self.level_names[('zenith',val)]
                     if len(matches)==1:
-                        x=matches[0]; zenith[x['skill_id']] += x['points']
+                        x=matches[0]; zenith[x['skill_id']] += x['points'];zenith_details[x['skill_id']].append({'item_id':r['id'],'ja':r['ja'],'en':r['en'],'points':x['points']})
                     else: warnings.append(f'unknown zenith ability: {val}')
                 elif typ=='スキル発動':
                     matches=self.level_names[('normal',val)]
@@ -181,11 +181,17 @@ class Engine:
                 mode,capacity=row['slot_mode'],row['slots_reported']
                 for p in self.db.execute('SELECT skill_id,points FROM ferias_zenith WHERE weapon_type=? AND page=? AND anchor=?',(wt,weapon['page'],weapon['anchor'])):
                     if p[0] is None or p[1] is None: warnings.append('unmapped weapon zenith skill')
-                    else: zenith[p[0]]+=p[1]
+                    else:
+                        zenith[p[0]]+=p[1];zenith_details[p[0]].append({'part':'weapon','page':row['page'],'anchor':row['anchor'],'ja':row['name_source'],'en':row['name_source'],'points':p[1]})
                 if row['category']=='exotic':
                     x=self.level_names[('normal','早食い')][0]
                     automatic[x['skill_id']]=x
-                if json.loads(row['intrinsic_raw']): warnings.append('weapon intrinsic skill not evaluated')
+                from weapon_effects import intrinsic_levels
+                declared,unmapped=intrinsic_levels(self,row)
+                for x in declared:
+                    sid=x['skill_id']
+                    if sid not in automatic or automatic[sid]['points']<x['points']:automatic[sid]=x
+                if unmapped:warnings.append('weapon intrinsic skill not evaluated')
                 conflict=self.db.execute('SELECT conflict,pax_match FROM ferias_weapons WHERE weapon_type=? AND upstream_id=?',(wt,row['upstream_id'])).fetchone()
                 if conflict and (conflict[0] or conflict[1]=='linked_stats_differ'): warnings.append('weapon source discrepancy; Ferias variant used provisionally')
             check=validate_slots(mode,capacity,used,sigils)
@@ -274,7 +280,7 @@ class Engine:
             if tid:
                 has_base=bool((tid in gear_effective and tid not in suppressed and (gear_effective[tid]['points']>0 or target=='喝')) or gear_contained.get(tid))
             elif target: warnings.append(f'unresolved zenith target: {target}')
-            zresult.append({'id':sid,'ja':x['ja'] if x else None,'en':x['en'] if x else None,'raw_points':total,'level':x['points'] if x else 0,'target':target,'has_base_skill':has_base})
+            zresult.append({'id':sid,'ja':x['ja'] if x else None,'en':x['en'] if x else None,'raw_points':total,'level':x['points'] if x else 0,'target':target,'has_base_skill':has_base,'contributions':zenith_details[sid]})
         # The three protection skills can be supplied by composite or innate effects.
         protection=[]
         for base,boost,super_name in [('聴覚保護','耳栓強化','超咆哮無効'),('風圧','風圧強化','超風圧無効'),('耐震','耐震強化','超震動無効')]:

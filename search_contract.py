@@ -111,6 +111,21 @@ class SearchContract:
         return hits
 
     def prepare_request(self, req):
+        req=copy.deepcopy(req)
+        if req.get('sigil_mode') not in (None,'auto','fixed'):raise ValueError('invalid sigil mode')
+        mode=req.get('search_mode')
+        if mode not in (None,'automatic','fixed'):raise ValueError('invalid search mode')
+        if mode=='automatic':
+            req['armor']={};req.pop('cuffs',None)
+            req['weapon']={k:v for k,v in req.get('weapon',{}).items() if k=='sigils'}
+            req['auto_weapon']=True;req['integrated_weapon']=True
+            req.setdefault('g_poogie',True);req.setdefault('premium_poogie_clothes',True)
+            req.setdefault('g_armor_only',False)
+        if req.get('sigil_mode')=='auto' and req.get('integrated_weapon') and not req.get('auto_weapon') and req.get('weapon',{}).get('page'):
+            selector={k:req['weapon'][k] for k in ('page','anchor')}
+            if 'weapon_candidates' in req and selector not in req['weapon_candidates']:raise ValueError('fixed weapon outside allowlist')
+            req['weapon_candidates']=[selector];req['auto_weapon']=True
+            req['weapon']={k:v for k,v in req['weapon'].items() if k in ('sigils','jewels')}
         self.conflicts(req)
         req={k:v for k,v in req.items() if k!='_fast_armor_cap'}
         req=restrict_inventory(req,self.items,self.e.equipment)

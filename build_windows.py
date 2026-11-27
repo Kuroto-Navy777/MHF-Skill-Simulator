@@ -19,7 +19,7 @@ REQUIRED_BUILD_FILES = (
     'launcher.py', 'launcher_update.py', 'desktop_safety.py', 'desktop_info.py', 'desktop_entry.py', 'desktop.py',
     'desktop_lifecycle.py', 'worker_control.py', 'update_progress.py',
     'update_core.py', 'release_check.py', 'runtime_paths.py', 'windows_setup.py',
-    'activation.py', 'search_contract.py', 'candidate_reader.py', 'search_data.py', 'candidate_validation.py', 'candidate_pool.py',
+    'weapon_effects.py', 'activation.py', 'search_contract.py', 'candidate_reader.py', 'search_data.py', 'candidate_validation.py', 'candidate_pool.py',
     'candidate_groups.py', 'candidate_service.py',
     'installer_guard.py', 'web_api.py', 'search_engine.py', 'release_sign.py', 'release_preflight.py',
     'web/app.js', 'web/favicon.ico', 'VERSION', 'release_source.json',

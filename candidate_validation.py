@@ -51,11 +51,14 @@ def validate(searcher,req,build):
         else:
             for key in ('virtual','page','anchor','template','slots','slot_mode'):
                 require(w.get(key)==expected.get(key),'weapon selector: '+key)
-        require(w.get('sigils',0)==expected.get('sigils',0),'sigil reservation')
+        if req.get('sigil_mode')!='auto':require(w.get('sigils',0)==expected.get('sigils',0),'sigil reservation')
         if 'page' in w:
-            row=s.db.execute('SELECT v.*,w.name_ja FROM ferias_variants v JOIN ferias_weapons w USING(weapon_type,upstream_id) WHERE v.weapon_type=? AND v.page=? AND v.anchor=?',
+            row=s.db.execute('SELECT v.*,w.name_ja,w.conflict FROM ferias_variants v JOIN ferias_weapons w USING(weapon_type,upstream_id) WHERE v.weapon_type=? AND v.page=? AND v.anchor=?',
                              (req['weapon_type'],w['page'],w['anchor'])).fetchone()
             require(s.weapon_permitted(row,req),'weapon restrictions')
+            if req.get('auto_weapon') and row is not None:
+                from weapon_effects import intrinsic_levels
+                require(not row['conflict'] and not intrinsic_levels(e,row)[1] and row['slot_mode'] in ('shared','sigil','decoration'),'supported auto weapon')
         if 'template' in w: require(allowed(eid(w['template'],'weapon_template')),'weapon template restrictions')
         fixed=Counter(eid(x,'jewel') for x in expected.get('jewels',[]))
         actual=Counter(eid(x,'jewel') for x in w.get('jewels',[]))
