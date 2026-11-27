@@ -45,10 +45,17 @@ def canonical_build(db, raw):
         b['armor'][p]={'item':resolve(db,p,a.get('item'),job,sex),'level':a['level'],'jewels':items('jewel',a.get('jewels',[]),3)}
     w=raw.get('weapon')
     if w is not None:
-        if not isinstance(w,dict) or 'template' in w or not all(isinstance(w.get(k),str) and 0<len(w[k])<=300 for k in ('page','anchor')): raise ValueError('select a physical weapon variant; templates are not supported for exchange')
+        if not isinstance(w,dict):raise ValueError('weapon must be an object')
         s=w.get('sigils',0)
         if type(s) is not int or not 0<=s<=3: raise ValueError('invalid sigil count')
-        b['weapon']={'page':w['page'],'anchor':w['anchor'],'sigils':s,'jewels':items('jewel',w.get('jewels',[]),3)}
+        if w.get('virtual') is True:
+            if any(k in w for k in ('page','anchor','template')) or type(w.get('slots')) is not int or not 0<=w['slots']<=3 or w.get('slot_mode') not in ('decoration','shared'):
+                raise ValueError('invalid virtual weapon selector')
+            b['weapon']={'virtual':True,'slots':w['slots'],'slot_mode':w['slot_mode'],'sigils':s,'jewels':items('jewel',w.get('jewels',[]),3)}
+        else:
+            if 'template' in w or not all(isinstance(w.get(k),str) and 0<len(w[k])<=300 for k in ('page','anchor')):
+                raise ValueError('select a physical weapon variant; templates are not supported for exchange')
+            b['weapon']={'page':w['page'],'anchor':w['anchor'],'sigils':s,'jewels':items('jewel',w.get('jewels',[]),3)}
     b['cuffs']=items('cuff',raw.get('cuffs',[]),2)
     if 'external' in raw: b['external']=normalize(raw['external'])
     return b
@@ -87,6 +94,8 @@ def decode_clip(text, context):
     if not nline.startswith('武器スロットなし'):
         w=context.get('weapon')
         if not isinstance(w,dict): raise ValueError('Weapon line needs a physical weapon: select the matching fixed weapon in the editor, then retry.')
+        if nline.startswith('仮想') and not w.get('virtual'): raise ValueError('Virtual clip requires virtual weapon slots in the editor')
+        if not nline.startswith('仮想') and w.get('virtual'): raise ValueError('Physical clip requires a physical weapon in the editor')
         b['weapon']={**w,'jewels':tail(wline)}
         warnings.append('Clip weapon name/Zenith effect/sigil count is not inferred: selected physical weapon and reserved sigils are used. Verify the match.')
     else:
@@ -120,7 +129,7 @@ def encode_clip(db,b,evaluation):
     if w:
         a=next(x for x in evaluation['slots']['equipment'] if x['part']=='weapon')
         keys=w['jewels']; cap=max(0,(a['capacity'] or 0)-w['sigils']) if a['mode'] in ('shared','decoration') else 0
-        lines.append(f'武器スロット{cap}  {marks(keys,cap)}  {jewels(keys)}'.rstrip())
+        lines.append(('仮想' if w.get('virtual') else '')+f'武器スロット{cap}  {marks(keys,cap)}  {jewels(keys)}'.rstrip())
     else: lines.append('武器スロットなし')
     for p in PARTS:
         a=b['armor'][p]; r=item(a['item']); lv=db.execute('SELECT defense,slots FROM levels WHERE equipment_id=? AND level=?',(a['item'],a['level'])).fetchone()
@@ -128,7 +137,7 @@ def encode_clip(db,b,evaluation):
     c=b['cuffs']; secret=any(db.execute("SELECT 1 FROM abilities WHERE equipment_id=? AND type_ja='スキル枠消費なし'",(k,)).fetchone() for k in c)
     lines.append(f'服Pスロット２  {"●" if secret else ""}{marks(c,2,"★","－")}  {jewels(c)}'.rstrip())
     lines.append('発動スキル（シミュレーター計算・Rain未検証）')
-    lines.append(', '.join(s['level_ja'] for s in evaluation['skills'] if s['status']=='active'))
+    lines.append(', '.join(s['level_ja'] for s in evaluation['skills'] if s['status'] in ('active','overlap')))
     lines.append('辿異スキル');lines.append(', '.join(s['ja'] for s in evaluation['zenith'] if s['level']>0))
     return '\n'.join(lines)
 

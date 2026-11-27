@@ -25,6 +25,7 @@ class Engine:
         self._equipment_cache = {}
         self._contribution_cache = {}
         self._armor_levels_cache = {}
+        self._rule_cache = {}
         db.row_factory = sqlite3.Row
         self.skills = {r['id']: dict(r) for r in db.execute('SELECT * FROM skills')}
         self.levels = defaultdict(list)
@@ -37,9 +38,15 @@ class Engine:
             self.levels[x['skill_id']].append(x)
             self.level_names[(self.skills[x['skill_id']]['kind'], x['ja'])].append(x)
 
+    def rule_groups(self,level):
+        key=(level['skill_id'],level['points'])
+        if key not in self._rule_cache:
+            self._rule_cache[key]=json.loads(level['rules_json'])['ja']['children']
+        return self._rule_cache[key]
+
     # Resolve known direct XML relations; do not invent effects absent from the data.
     def contained_levels(self, level):
-        for group in json.loads(level['rules_json'])['ja']['children']:
+        for group in self.rule_groups(level):
             if group['tag'] == 'ContainedSkills':
                 for ch in group['children']:
                     matches = self.level_names[('normal', ch['attributes'].get('Name'))]
@@ -61,6 +68,10 @@ class Engine:
         # Cache repeated exact lookups within the same immutable-data engine instance.
         cache_key=(kind,key)
         if cache_key in self._equipment_cache:return self._equipment_cache[cache_key]
+        if hasattr(self,'_indexed_lookup'):
+            ids=self._indexed_lookup.get((kind,key),[])
+            if len(ids)!=1: raise ValueError(f'{kind}: expected one equipment for {key!r}, got {len(ids)}')
+            return self._indexed_items[ids[0]]
         rows = self.db.execute('SELECT * FROM equipment WHERE kind=? AND (id=? OR ja=? OR en=?)', (kind,key,key,key)).fetchall()
         if len(rows) != 1:
             raise ValueError(f'{kind}: expected one equipment for {key!r}, got {len(rows)}')
@@ -70,6 +81,10 @@ class Engine:
     # The evaluator uses a read-only imported database; cache only immutable source rows.
     def contribution_rows(self, eid):
         if eid not in self._contribution_cache:
+            if hasattr(self,'_indexed_points'):
+                points=tuple(self._indexed_points.get(eid,{}).items()); abilities=tuple(self._indexed_abilities.get(eid,[]))
+                self._contribution_cache[eid]=(points,abilities)
+                return points,abilities
             points=tuple(self.db.execute('SELECT skill_id,points FROM equipment_skills WHERE equipment_id=?',(eid,)))
             abilities=tuple(self.db.execute('SELECT type_ja,value_ja FROM abilities WHERE equipment_id=?',(eid,)))
             self._contribution_cache[eid]=(points,abilities)
@@ -147,7 +162,14 @@ class Engine:
         weapon=build.get('weapon'); physical_weapon=None
         if weapon:
             keys=weapon.get('jewels',[]); used=jewels(keys); sigils=weapon.get('sigils',0)
-            if 'template' in weapon:
+            if weapon.get('virtual') is True:
+                if any(k in weapon for k in ('template','page','anchor')): raise ValueError('mixed virtual/physical weapon selectors')
+                capacity=weapon.get('slots');mode=weapon.get('slot_mode','decoration')
+                if type(capacity) is not int or not 0<=capacity<=3 or mode not in ('decoration','shared'):
+                    raise ValueError('invalid virtual weapon slots/mode')
+                if type(sigils) is not int or not 0<=sigils<=3: raise ValueError('invalid virtual sigil reservation')
+                warnings.append('virtual weapon slots: no intrinsic or Zenith weapon effects')
+            elif 'template' in weapon:
                 if 'page' in weapon or 'anchor' in weapon: raise ValueError('mixed weapon selectors')
                 r=self.equipment(weapon['template'],'weapon_template'); add(r)
                 mode,capacity=weapon['slot_mode'],weapon['slots']
@@ -211,7 +233,7 @@ class Engine:
         # XML relations describe effect overlap, not removal from the skill slot list.
         contained=defaultdict(list); suppressed=defaultdict(list); relations=[]
         for sid,x in effective.items():
-            for group in json.loads(x['rules_json'])['ja']['children']:
+            for group in self.rule_groups(x):
                 if group['tag'] not in ('ContainedSkills','DeactivateSkills'):
                     warnings.append(f"unknown rule: {group['tag']}"); continue
                 for ch in group['children']:
@@ -225,7 +247,7 @@ class Engine:
                         suppressed[tid].append(x['ja'])
         # Do not promise exact effect resolution for overlapping composite skills.
         for sid in suppressed:
-            if any(r['tag']=='ContainedSkills' for r in json.loads(effective[sid]['rules_json'])['ja']['children']):
+            if any(r['tag']=='ContainedSkills' for r in self.rule_groups(effective[sid])):
                 warnings.append(f"partial composite overlap: {effective[sid]['ja']}")
         # Keep only actual providers for Zenith and flat stats. A suppressed composite
         # may have surviving effects, so preserve its warning but do not assert them.
@@ -278,7 +300,11 @@ class Engine:
         stats['armor_levels']=comparison(comparison_parts,stats)
         if physical_weapon is not None:
             stats['weapon_preview']=weapon_preview(ext,wt,physical_weapon['attack'],physical_weapon['affinity'])
-        return {'defense_stats':stats,'valid':not errors,'rain_verified':False,'no_known_issues':not warnings and not errors,'fully_verified':False,'configuration_warnings':sorted(set(warnings)),'errors':errors,'slots':{'capacity':slot_cap,'used':used,'g_armor_count':g_count,'cuff_used':cslots,'equipment':allocation},'skills':result,'zenith':zresult,'automatic':[{'id':sid,'ja':x['ja'],'en':x['en'],'source':'equipment','threshold':x['points'],'effective':sid not in suppressed} for sid,x in automatic.items()]+([{'id':meal['skill_id'],'ja':meal['ja'],'en':meal['en'],'source':'meal','threshold':meal['points'],'effective':meal['skill_id'] not in suppressed}] if meal else []),'relations':relations,'protection':protection}
+        report={'defense_stats':stats,'valid':not errors,'rain_verified':False,'no_known_issues':not warnings and not errors,'fully_verified':False,'configuration_warnings':sorted(set(warnings)),'errors':errors,'slots':{'capacity':slot_cap,'used':used,'g_armor_count':g_count,'cuff_used':cslots,'equipment':allocation},'skills':result,'zenith':zresult,'automatic':[{'id':sid,'ja':x['ja'],'en':x['en'],'source':'equipment','threshold':x['points'],'effective':sid not in suppressed} for sid,x in automatic.items()]+([{'id':meal['skill_id'],'ja':meal['ja'],'en':meal['en'],'source':'meal','threshold':meal['points'],'effective':meal['skill_id'] not in suppressed}] if meal else []),'relations':relations,'protection':protection}
+        from activation import attained
+        report['attained']=attained(report)
+        return report
+
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--db',required=True,type=Path);p.add_argument('--build',required=True,type=Path);a=p.parse_args()

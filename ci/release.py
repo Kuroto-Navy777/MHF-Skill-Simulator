@@ -8,10 +8,12 @@ import getpass
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -32,18 +34,64 @@ def audit_index():
     files=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')
     for name in filter(None,files):
         p=Path(name)
-        if p.suffix.lower() in {'.pem','.key','.pfx','.p12','.db','.sqlite','.sqlite3','.zip'} or '.env' in p.parts:
+        if (p.suffix.lower() in {'.pem','.key','.pfx','.p12','.db','.sqlite','.sqlite3','.zip','.xml'} or
+            p.name.lower().endswith(('.sqlite-wal','.sqlite-shm','.db-wal','.db-shm','.sqlite3-wal','.sqlite3-shm')) or
+            any(part.startswith('.env') for part in p.parts)):
             raise ValueError(f'Private or unlicensed file in Git index: {name}')
         data=(ROOT/p).read_bytes()
-        if b'-----BEGIN PRIVATE KEY-----\n' in data or b'-----BEGIN ENCRYPTED PRIVATE KEY-----\n' in data:
-            raise ValueError(f'Private key material in Git index: {name}')
+        if (re.search(rb'(?m)^-----BEGIN (?:ENCRYPTED |RSA |EC |OPENSSH )?PRIVATE KEY-----\r?$',data) or
+            re.search(rb'gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|sk-proj-[A-Za-z0-9_-]{30,}',data)):
+            raise ValueError(f'Secret material in Git index: {name}')
 
 
 def source_manifest(version):
     names=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')
-    files={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sorted(filter(None,names))
+    # Hash staged bytes: Git may normalize CRLF, so working-tree hashes can differ
+    # from the source archive GitHub generates for the actual release commit.
+    files={name:hashlib.sha256(subprocess.check_output(['git','show',':'+name],cwd=ROOT)).hexdigest() for name in sorted(filter(None,names))
            if name!='release_manifest.json'}
     (ROOT/'release_manifest.json').write_text(json.dumps({'version':version,'kind':'source','files':files},indent=2)+'\n',encoding='utf-8')
+
+
+def unlock_password(gui,version):
+    password=os.environ.pop('MHF_SIGNING_PASSWORD',None)
+    if password:return password
+    if not gui:return getpass.getpass('Existing release key password: ')
+    import tkinter as tk
+    from tkinter import simpledialog
+    window=tk.Tk();window.withdraw();window.attributes('-topmost',True)
+    try:
+        password=simpledialog.askstring('MHF '+version+' 既存署名鍵の解除',
+                    '既存の署名鍵のパスワードを入力してください。\nチャット・ファイルには保存しません。鍵は変更しません。',show='*',parent=window)
+        if password is None:raise RuntimeError('Signing cancelled; no release published')
+        return password
+    finally:window.destroy()
+
+
+def wait_ci(commit):
+    # New source is pushed before waiting; a failure leaves only a draft release.
+    deadline=time.monotonic()+900
+    while time.monotonic()<deadline:
+        rows=json.loads(subprocess.check_output(['gh','run','list','--repo',REPO,'--commit',commit,
+                            '--json','databaseId,workflowName,status,conclusion'],cwd=ROOT))
+        tests=[r for r in rows if r['workflowName']=='Tests']
+        if tests:
+            run('gh','run','watch',tests[0]['databaseId'],'--repo',REPO,'--exit-status','--interval','10')
+            return
+        time.sleep(5)
+    raise TimeoutError('Tests workflow did not start; release remains a draft')
+
+
+def register_release(version,commit,assets,notes=None,publish=False,promote_main=False):
+    args=['gh','release','create','v'+version,'--repo',REPO,'--target',commit,
+          '--title','MHF Skill Simulator v'+version,'--draft']
+    args+=['--notes-file',str(notes.resolve())] if notes else ['--generate-notes']
+    run(*args,*sorted(assets))
+    if publish:
+        wait_ci(commit)
+        if promote_main:
+            run('git','fetch','origin','main');run('git','push','origin','HEAD:main')
+        run('gh','release','edit','v'+version,'--repo',REPO,'--draft=false','--latest')
 
 
 def main():
@@ -55,15 +103,19 @@ def main():
     p.add_argument('--previous',type=Path,required=True)
     p.add_argument('--push',action='store_true',help='Commit and push current branch after validation')
     p.add_argument('--publish',action='store_true',help='Publish verified assets instead of creating a draft')
+    p.add_argument('--gui-password',action='store_true',help='Unlock the existing key in a local masked dialog')
+    p.add_argument('--notes-file',type=Path,help='Release notes; otherwise use generated GitHub notes')
+    p.add_argument('--promote-main',action='store_true',help='Fast-forward main only after successful CI')
     a=p.parse_args(); version_key(a.version)
     if a.publish and not a.push: p.error('--publish requires --push')
+    if a.promote_main and not a.publish:p.error('--promote-main requires --publish')
     if os.name!='nt' or sys.version_info[:2]!=(3,12): p.error('Windows Python 3.12 required')
     for path in (a.db,a.public_key,a.private_key,a.previous):
         if not path.is_file(): p.error(f'Missing required local file: {path.name}')
     a.db=a.db.resolve(); a.public_key=a.public_key.resolve(); a.private_key=a.private_key.resolve(); a.previous=a.previous.resolve()
     public=a.public_key.read_bytes()
     if len(public)!=32: p.error('Expected existing 32-byte Ed25519 public key')
-    password=os.environ.pop('MHF_SIGNING_PASSWORD',None) or getpass.getpass('Existing release key password: ')
+    password=unlock_password(a.gui_password,a.version)
     key=serialization.load_pem_private_key(a.private_key.read_bytes(),password=password.encode())
     del password
     actual=key.public_key().public_bytes(serialization.Encoding.Raw,serialization.PublicFormat.Raw)
@@ -79,7 +131,7 @@ def main():
     env={**os.environ,'MHF_TEST_DB':str(a.db.resolve()),'PYTHONUTF8':'1'}
     run(sys.executable,'-m','unittest','discover','-v',env=env)
     run('node','--test',*[path.name for path in ROOT.glob('test_*.mjs')])
-    run(sys.executable,'verify_v112_browser.py',env=env)
+    run(sys.executable,'verify_v120_browser.py',env=env)
     out=ROOT/'release'/a.version
     run(sys.executable,'build_windows.py','--db',a.db,'--pair','--public-key',a.public_key,'--out',out)
     archive=out/f'MHF_SkillSimulator_{a.version}_win_x64_no_DB.zip'
@@ -99,10 +151,7 @@ def main():
     if a.push:
         run('git','push','-u','origin','HEAD')
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT).decode().strip()
-        args=['gh','release','create','v'+a.version,'--repo',REPO,'--target',commit,'--title','MHF Skill Simulator v'+a.version,
-              '--notes-file',str(ROOT/'V112_REPORT.md')]
-        if not a.publish: args+=['--draft']
-        run(*args,*sorted(upload.iterdir()))
+        register_release(a.version,commit,upload.iterdir(),a.notes_file,a.publish,a.promote_main)
     else:
         print('Verified local assets ready. Push/release omitted; use --push (draft) or --push --publish.')
 

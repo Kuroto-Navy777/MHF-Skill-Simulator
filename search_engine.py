@@ -6,13 +6,17 @@ import math
 import heapq
 import sqlite3
 import time
-from collections import Counter, defaultdict
+import warnings
+import sys
+from collections import Counter, defaultdict, OrderedDict
 from pathlib import Path
 
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 from scipy.sparse import coo_matrix, vstack
 from skill_engine import Engine, PARTS, WEAPON_SECRET
+from search_contract import SearchContract
+from search_data import snapshot as data_snapshot, indices as data_indices, ArmorStats
 from ferias_import import validate_slots
 from inventory import restrict_inventory
 from armor_levels import endpoint
@@ -62,10 +66,14 @@ class Model:
             tail=coo_matrix((vv,(rr,cc)),shape=(len(self.rows)-start,len(self.cost))).tocsc()
             self._matrix=tail if self._matrix is None else vstack([self._matrix,tail],format='csc')
         matrix=self._matrix
-        return milp(np.array(self.cost, dtype=float), integrality=np.ones(len(self.cost)),
-                    bounds=Bounds(np.zeros(len(self.cost)), np.array(self.ub)),
-                    constraints=LinearConstraint(matrix, self.lo, self.hi),
-                    options={'time_limit': max(.05, seconds)})
+        # HiGHS explicitly bounds native solver concurrency; background jobs also
+        # run below normal Windows priority. Keep unrelated warnings visible.
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore',message=r"Unrecognized options detected: .*threads.*",category=RuntimeWarning)
+            return milp(np.array(self.cost, dtype=float), integrality=np.ones(len(self.cost)),
+                        bounds=Bounds(np.zeros(len(self.cost)), np.array(self.ub)),
+                        constraints=LinearConstraint(matrix, self.lo, self.hi),
+                        options={'time_limit': max(.05, seconds),'threads':1})
 
 
 def plus(dest, src, factor=1):
@@ -103,23 +111,32 @@ class DecisionBounds:
         return lo,hi
 
 
-class Searcher:
+class Searcher(SearchContract):
     def __init__(self, db):
         self.db = db
         self.progress = None
+        self.witnesses=OrderedDict()
         self.e = Engine(db)
+        data, self.data_cache_hit, self.data_load_seconds = data_snapshot(db,self._load_data)
+        for name,value in data.items(): setattr(self,name,value)
+        self.e._indexed_items=self.items; self.e._indexed_lookup=self.item_lookup
+        self.e._indexed_points=self.points; self.e._indexed_abilities=self.abilities
+        self.e._armor_levels_cache=self.levels
+
+    def _load_data(self):
+        db=self.db
         self.items = {r['id']: dict(r) for r in db.execute('SELECT * FROM equipment')}
         self.by_kind=defaultdict(dict)
         for eid,row in self.items.items(): self.by_kind[row['kind']][eid]=row
         self.points, self.abilities, self.levels = defaultdict(dict), defaultdict(list), defaultdict(list)
         for eid, sid, pt in db.execute('SELECT equipment_id,skill_id,points FROM equipment_skills'):
-            self.points[eid][sid] = pt
+            self.points[self.items[eid]['id']][self.e.skills[sid]['id']] = pt
         for eid, typ, val in db.execute('SELECT equipment_id,type_ja,value_ja FROM abilities'):
-            self.abilities[eid].append((typ,val))
+            self.abilities[self.items[eid]['id']].append((sys.intern(typ),sys.intern(val) if isinstance(val,str) else val))
         for eid, lv, slots, defense in db.execute('SELECT equipment_id,level,slots,defense FROM levels'):
             if slots is not None:
-                self.levels[eid].append((lv, slots, defense))
-        self.armor_stats = {eid: armor_values(r['metadata'], None) for part in PARTS for eid,r in self.by_kind[part].items()}
+                self.levels[self.items[eid]['id']].append((sys.intern(lv), slots, defense))
+        self.armor_stats = ArmorStats(self.items)
         self.zen = defaultdict(dict)
         self.auto = defaultdict(dict)
         for eid, abilities in self.abilities.items():
@@ -133,6 +150,8 @@ class Searcher:
                     matches = self.e.level_names[('zenith',val)]
                     if len(matches)==1:
                         x=matches[0]; self.zen[eid][x['skill_id']]=self.zen[eid].get(x['skill_id'],0)+x['points']
+        self.providers,self.item_lookup=data_indices(self.items,self.points,self.zen,self.auto)
+        return {name:getattr(self,name) for name in ['items', 'by_kind', 'points', 'abilities', 'levels', 'armor_stats', 'zen', 'auto', 'providers', 'item_lookup']}
 
     # Include ordinary prerequisites and composite providers in the focused pool.
     def dependency_targets(self, targets):
@@ -158,130 +177,59 @@ class Searcher:
                                 expanded.add(provider)
         return expanded
 
-    # Blue Soul is beneficial despite its negative threshold. Other negative tiers remain reference-only.
-    @staticmethod
-    def selectable(tier):
-        return tier["points"] > 0 or tier["ja"] == "青魂"
 
-    @staticmethod
-    def reaches(value, threshold):
-        return value <= threshold if threshold < 0 else value >= threshold
 
-    def requirement(self, x):
-        name=x['skill']
-        if 'points' in x:
-            ids=[sid for sid,s in self.e.skills.items() if name in (sid,s['ja'],s['en'])]
-            if len(ids)!=1 or type(x['points']) is not int or not any(y['points']==x['points'] and self.selectable(y) for y in self.e.levels[ids[0]]):
-                raise ValueError(f'invalid or ambiguous skill/threshold: {x}')
-            return ids[0],x['points']
-        matches=[(sid,y['points']) for sid,ls in self.e.levels.items() for y in ls if name in (y['ja'],y['en']) and self.selectable(y)]
-        if len(matches)!=1: raise ValueError(f'ambiguous/unknown skill level: {x}')
-        return matches[0]
 
-    # Resolve point requirements once and retain the largest threshold per skill.
-    def requirements(self, entries):
-        wanted={}
-        for entry in entries:
-            sid,pt=self.requirement(entry)
-            if sid in wanted and (wanted[sid]<0)!=(pt<0):
-                raise ValueError("Opposite skill thresholds conflict / 正負の発動条件が矛盾しています")
-            wanted[sid]=min(wanted.get(sid,pt),pt) if pt<0 else max(wanted.get(sid,pt),pt)
-        return wanted
 
-    # Score only skills actually active in the independent evaluator.
-    def achieved(self, report, sid, pt):
-        if sid.startswith('normal:'):
-            # Overlap describes redundant effects, not failed point activation.
-            # Still require this family's own tier: composite effects cannot stand in
-            # for explicitly requested points, and overflow/wrong-weapon never pass.
-            return (any(s['id']==sid and s['status'] in ('active','overlap') and self.reaches(s['threshold'] or 0,pt) for s in report['skills'])
-                    or any(s['id']==sid and s.get('effective',True) and self.reaches(s.get('threshold',0),pt) for s in report['automatic']))
-        return any(s['id']==sid and s['level']>=pt and s['has_base_skill'] is not False for s in report['zenith'])
 
-    # A forbidden tier means its positive point threshold must not be reached.
-    # Keep the lowest selected prohibition per family; higher tiers are also excluded.
-    def forbidden_requirements(self, req):
-        forbidden = {}
-        for entry in req.get('forbidden', []):
-            sid, pt = self.requirement(entry)
-            if sid in forbidden and (forbidden[sid]<0)!=(pt<0):
-                raise ValueError("Opposite prohibitions must be specified separately; currently unsupported")
-            forbidden[sid] = max(forbidden.get(sid, pt), pt) if pt<0 else min(forbidden.get(sid, pt), pt)
-        return forbidden
 
-    def conflicts(self, req):
-        forbidden = self.forbidden_requirements(req)
-        if any(sid in forbidden and self.reaches(pt,forbidden[sid]) for sid, pt in self.requirements(req['required']).items()):
-            raise ValueError('Required and forbidden skill thresholds conflict / 必須・禁止スキルが矛盾しています')
-        return forbidden
 
-    # Automatic skills can bypass ordinary point totals; check the evaluated result as well.
-    def forbidden_hit(self, report, forbidden):
-        for s in report['skills']:
-            if s['id'] in forbidden and self.reaches(s['points'],forbidden[s['id']]): return True
-        for s in report['zenith']:
-            if s['id'] in forbidden and s['raw_points'] >= forbidden[s['id']]: return True
-        for s in report['automatic']:
-            if s['id'] in forbidden and any(x['ja'] == s['ja'] and self.reaches(x['points'],forbidden[s['id']]) for x in self.e.levels[s['id']]): return True
-        return False
 
-    def optional_requirements(self, req):
-        result={}
-        for item in req.get('optional',[]):
-            sid,pt=self.requirement(item); weight=item.get('weight',1)
-            if type(weight) is not int or not 1<=weight<=100: raise ValueError('optional weight must be 1..100')
-            key=(sid,pt); result[key]=max(result.get(key,0),weight)
-        return result
 
-    def metrics(self, hit, req):
-        r=hit['evaluation']; wanted=self.requirements(req['required']); opt=self.optional_requirements(req)
-        actual={s['id']:s['points'] for s in r['skills']}; actual.update({s['id']:s['raw_points'] for s in r['zenith']})
-        optional=[{'id':sid,'threshold':pt,'weight':weight,'achieved':self.achieved(r,sid,pt)} for (sid,pt),weight in opt.items()]
-        stages=0
-        for (sid,pt),weight in opt.items():
-            tiers=[x for x in self.e.levels[sid] if self.selectable(x) and (x['points']<0)==(pt<0)]
-            stages+=weight*sum(self.achieved(r,sid,x['points']) for x in tiers)/max(1,len(tiers))
-        surplus=sum(max(0,(actual.get(sid,0)-pt)*(1 if pt>0 else -1)) for sid,pt in wanted.items())
-        active=sum(s['status'] in ('active','overlap') and ((s['threshold'] or 0)>0 or s['level_ja']=='青魂') for s in r['skills'])
-        spare=sum(a['capacity']-a['used']-a.get('sigils',0) for a in r['slots']['equipment'] if a.get('mode','decoration') in ('shared','decoration'))
-        return {'optional':optional,'optional_score':sum(s['weight'] for s in optional if s['achieved']),
-                'optional_count':sum(s['achieved'] for s in optional),'optional_stage_score':stages,
-                'active_normal_skills':active,'required_surplus':surplus,'free_jewel_slots':spare,
-                'new_jewels':hit['new_jewels'], 'stat_mode':constraints(req)[1], **{('defense' if k=='defense' else 'res_'+k):r['defense_stats'][constraints(req)[1]][k] for k in STATS}, 'resistance_sum':sum(r['defense_stats'][constraints(req)[1]][k] for k in ELEMENTS) if all(r['defense_stats'][constraints(req)[1]][k] is not None for k in ELEMENTS) else None}
 
-    # Sort the returned candidates by the requested objective using evaluated, not relaxed, values.
-    def rank(self, hits, req):
-        mode=req.get('objective','minimal_jewels')
-        for h in hits: h['metrics']=self.metrics(h,req)
-        def key(h):
-            m=h['metrics']; o=m['optional_score']; a=m['active_normal_skills']; s=m['required_surplus']; j=m['new_jewels']
-            return {'minimal_jewels':(j,-o,-a,s), 'optional':(-o,j,-a,s), 'max_skills':(-a,-o,j,s), 'surplus':(s,j,-o,-a), 'defense':(-(m['defense'] if m['defense'] is not None else -100000),j,-o,-a), 'resistance':(-(m['resistance_sum'] if m['resistance_sum'] is not None else -100000),j,-o,-a)}[mode]
-        hits.sort(key=lambda h:(key(h),-h['metrics']['optional_count'],-h['metrics']['optional_stage_score'],self.build_key(h['build'])))
-        for i,h in enumerate(hits,1): h['rank']=i
-        return hits
+
 
     def search(self, req):
-        self.conflicts(req)
-        req={k:v for k,v in req.items() if k!='_fast_armor_cap'}
-        req=restrict_inventory(req,self.items,self.e.equipment)
-        # A separate opt-in weapon inventory preserves the existing armor-only filter.
-        if 'owned_weapons' in req:
-            from weapon_inventory import restrict_weapons
-            req=restrict_weapons(req,self.db)
-        if req.get('bounty'):
-            req=copy.deepcopy(req)
-            r=rules(req['bounty'])
-            if req['weapon_type'] in r['weapon_types_deny']: raise ValueError('Bounty: weapon type prohibited / 武器種禁止')
-            if not req.get('auto_weapon') and not req.get('weapon',{}).get('page'): raise ValueError('Bounty: select physical weapon or auto / 武器固定または自動選択が必要')
-            if r['no_sigils'] and req.get('weapon',{}).get('sigils',0): raise ValueError('Bounty: sigils prohibited / シジル禁止')
-            if any(banned_skill(self.e.skills[sid]['ja'],r,req['weapon_type'],WEAPON_SECRET.values()) for sid in self.requirements(req['required'])): raise ValueError('Bounty: required skill prohibited / 必須スキル禁止')
-            if r['armor_ranks'] is not None: req['g_armor_only']=False
-        constraints(req)
-        if req.get('objective','minimal_jewels') not in ('minimal_jewels','optional','max_skills','surplus',*OBJECTIVES):
-            raise ValueError('unknown objective')
-        if req.get('auto_weapon'):
-            return self.search_weapons(req)
-        return self.search_with_strategy(req)
+        try:return self._search(req)
+        except (ValueError,KeyError,TypeError) as exc:
+            if not req.get('structured_outcomes'):raise
+            return {'status':'input_conflict','reason':str(exc),'results':[],
+                    'confirmed_builds':0,'distinct_armor':0,'decoration_variants':0,
+                    'attempts':0,'rejected':0,'elapsed_seconds':0,'complete_game_search':False}
+
+    def _search(self, req):
+        req=self.prepare_request(req)
+        from candidate_pool import condition_key
+        from candidate_validation import validate
+        scope=condition_key(req)
+        seeds=list(req.pop('_seed_builds',[]))[:32]+list(self.witnesses.get(scope,[]))
+        valid=[]; seen=set()
+        for build in seeds:
+            report,reasons=validate(self,req,build)
+            if report is None: continue
+            key=self.build_key(build)
+            if key in seen: continue
+            seen.add(key)
+            total=sum(len(a.get('jewels',[])) for a in list(build['armor'].values())+[build.get('weapon',{})])
+            fixed=sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})])
+            valid.append({'build':copy.deepcopy(build),'evaluation':report,'new_jewels':total-fixed,'reused_witness':True})
+        if req.get('diverse_armor') and not (req.get('collect_variants') and all(req.get('armor',{}).get(p) for p in PARTS)):
+            from candidate_groups import armor_key
+            by_armor={}
+            for h in self.rank(valid,req):by_armor.setdefault(armor_key(h['build']),h)
+            valid=list(by_armor.values())
+        req={**req,'_initial_hits':self.rank(valid,req)[:int(req.get('limit',3))]}
+        result=self.search_weapons(req) if req.get('auto_weapon') else self.search_with_strategy(req)
+        from candidate_groups import group_hits,counts
+        result['armor_groups']=group_hits(result['results']);result.update(counts(result['results']))
+        result['reused_witnesses']=len(valid)
+        result['retained_witnesses']=sum(h.get('reused_witness',False) for h in result['results'])
+        result['data_cache_hit']=self.data_cache_hit;result['data_load_seconds']=round(self.data_load_seconds,6)
+        existing=list(self.witnesses.pop(scope,[]))
+        unique={self.build_key(b):b for b in existing+[h['build'] for h in result['results']]}
+        self.witnesses[scope]=list(unique.values())[-128:]
+        while len(self.witnesses)>4:self.witnesses.popitem(last=False)
+        return result
 
     def search_with_strategy(self, req):
         # Keep legacy callers compatible. Adaptive mode retries the full pool if the focused search is incomplete.
@@ -316,6 +264,7 @@ class Searcher:
 
     def search_fixed(self, req, initial_hits=()):
         start=time.monotonic()
+        initial_hits=initial_hits or req.get('_initial_hits',())
         level_mode=req.get('armor_level_mode','max')
         if level_mode not in ('first','max'): raise ValueError('invalid armor level mode')
         seconds=float(req.get('seconds',15)); limit=int(req.get('limit',3))
@@ -329,6 +278,7 @@ class Searcher:
         forbidden=self.conflicts(req)
         objective=req.get('objective','minimal_jewels')
         targets=self.dependency_targets(set(wanted)|{sid for sid,pt in optional})
+        targets.add(self.e.names[('zenith','スキル枠拡張')])
         br=rules(req['bounty']) if req.get('bounty') else None
         limits,stat_mode=constraints(req)
         ext=normalize(req.get('external'))
@@ -422,7 +372,7 @@ class Searcher:
                 if not ls: continue
                 lv,slots,defense=endpoint(ls,level_mode)
                 if slots<used: continue
-                values={**self.armor_stats[eid],'defense':defense}
+                values={**self.armor_stats[eid],'defense':defense} if stat_targets-set(['defense']) else {'defense':defense}
                 if any(values[k] is None for k in stat_targets): continue
                 eligible.append((eid,lv,slots,values))
             eligible_armor[part]=len(eligible)
@@ -454,7 +404,11 @@ class Searcher:
         if any(fixed_counts[k]>v for k,v in inventory.items()): raise ValueError('fixed jewels exceed inventory limit')
         jewel_vars={}; by_size=defaultdict(dict)
         eligible_jewels=[]
-        for eid,r in self.by_kind['jewel'].items():
+        focused_ids=set().union(*(self.providers.get(sid,set()) for sid in targets|set(forbidden)))
+        jewel_source=self.by_kind['jewel'].items()
+        if jids is None and objective!='max_skills' and not req.get('full_jewel_pool',False):
+            jewel_source=((eid,self.items[eid]) for eid in sorted(focused_ids) if self.items[eid]['kind']=='jewel')
+        for eid,r in jewel_source:
             if not jewel_ok(eid) or (jids is not None and eid not in jids): continue
             if jids is None and objective!='max_skills' and not req.get('full_jewel_pool',False) and not relevant(eid): continue
             n=min(maxslots//r['slots'],inventory.get(eid,maxslots+fixed_counts[eid])-fixed_counts[eid])
@@ -489,7 +443,10 @@ class Searcher:
         eligible_cuff_count=0
         if 'cuffs' not in base:
             countrow={}; slotrow={}; secretrow={}; eligible_cuffs=[]
-            for eid,r in self.by_kind['cuff'].items():
+            cuff_source=self.by_kind['cuff'].items()
+            if cids is None and objective!='max_skills' and not req.get('full_jewel_pool',False):
+                cuff_source=((eid,self.items[eid]) for eid in sorted(focused_ids) if self.items[eid]['kind']=='cuff')
+            for eid,r in cuff_source:
                 if not permitted(r) or not supported(eid) or (cids is not None and eid not in cids): continue
                 if cids is None and objective!='max_skills' and not req.get('full_jewel_pool',False) and not relevant(eid): continue
                 if r['slots'] not in (0,1,2): continue
@@ -540,6 +497,34 @@ class Searcher:
         for sid,pt in wanted.items():
             row,k=attainment(sid,pt)
             model.add(row,low=abs(pt)-k)
+            if sid.startswith('zenith:'):
+                target=json.loads(self.e.skills[sid]['metadata'])['ja'].get('Target')
+                base_sid=self.e.names.get(('normal',target))
+                if base_sid:
+                    alternatives=set()
+                    tiers=[t for t in self.e.levels[base_sid] if t['points']>0 or t['ja']=='青魂']
+                    alternatives.update((base_sid,t['points']) for t in tiers)
+                    for provider,tiers in self.e.levels.items():
+                        if not provider.startswith('normal:'):continue
+                        for tier in tiers:
+                            if any(t['skill_id']==base_sid for t in self.e.contained_levels(tier)):
+                                alternatives.add((provider,tier['points']))
+                    # A mandatory gear provider already has the same point/automatic
+                    # attainment constraint. Avoid redundant OR binaries; food is not
+                    # a gear prerequisite, so its family cannot justify this shortcut.
+                    meal=self.e.meal_level(ext)
+                    if any(provider in wanted and self.reaches(wanted[provider],threshold)
+                           and (meal is None or provider!=meal['skill_id'])
+                           for provider,threshold in alternatives):continue
+                    gates={};fixed_base=False
+                    for provider,threshold in sorted(alternatives):
+                        row,k=attainment(provider,threshold,include_meal=False)
+                        lower,upper=bounds.interval(row,k);threshold=abs(threshold)
+                        if lower>=threshold: fixed_base=True;break
+                        if upper<threshold:continue
+                        i=model.var();gates[i]=1;big=threshold-lower
+                        c=Counter(row);c[i]-=big;model.add(c,low=threshold-k-big)
+                    if not fixed_base:model.add(gates,low=1)
         # Positive cumulative tier bonuses are an optimistic relaxation. The evaluator
         # enforces actual activation, signed penalties and slot/overlap effects.
         if stat_targets and stat_mode in ('adjusted','external'):
@@ -643,9 +628,12 @@ class Searcher:
             model.add(row,high=11+constant[extension]-fixed_reached)
 
         rejection_reasons=Counter(); rejection_samples=[]; rejection_log=[]
+        base_cost=list(model.cost)
+        fully_fixed=all(req.get('armor',{}).get(p) for p in PARTS)
+        diversify=bool(req.get('diverse_armor')) and not (fully_fixed and req.get('collect_variants'))
         results=list(initial_hits); seen_builds={self.build_key(h['build']) for h in results}; seen_effects={self.effect_key(h['build'],h['evaluation']) for h in results} if req.get('dedupe_effects') else set(); duplicates=0; rejected=0; attempts=0; status='time_limit'
         # Seed the expanded pass with already validated solutions; exclude their armor in diversity mode.
-        if req.get('diverse_armor'):
+        if diversify:
             for h in results:
                 selected={i:1 for part,choices in armor_vars.items() for i,(eid,lv) in choices.items() if eid==h['build']['armor'][part]['item']}
                 if len(selected)==len(PARTS): model.add(selected,high=len(PARTS)-1)
@@ -665,9 +653,20 @@ class Searcher:
                     if n<0 or n>sum(bits.values()): possible=False;break
                     selected.update(i for i,v in bits.items() if n&v)
             if possible: model.add({i:-1 if i in selected else 1 for i in decisions},low=1-len(selected))
+        for combination in req.get('_excluded_armor_sets',[])[:256]:
+            selected={i:1 for part,choices in armor_vars.items() for i,(eid,lv) in choices.items() if eid==combination.get(part)}
+            if len(selected)==5:model.add(selected,high=4)
+        if results:self.emit_progress(results,req,start)
+        build_seconds=time.monotonic()-start; solve_seconds=0; validation_seconds=0; first_candidate=None
         # A candidate is never published without replaying the independent evaluator.
-        while len(results)<limit and time.monotonic()-start<seconds:
+        while (len(results)<limit or (initial_hits and attempts==0)) and time.monotonic()-start<seconds:
+            if diversify and results:
+                frequency=Counter(a['item'] for h in results for a in h['build']['armor'].values())
+                for choices in armor_vars.values():
+                    for i,(eid,lv) in choices.items():model.cost[i]=base_cost[i]+5*frequency[eid]/len(results)
+            solve_start=time.monotonic()
             sol=model.solve(seconds-(time.monotonic()-start)); attempts+=1
+            solve_seconds+=time.monotonic()-solve_start
             if sol.x is None or sol.status not in (0,1):
                 status='model_exhausted' if sol.status==2 else 'time_limit' if sol.status==1 else 'solver_error'; break
             x=np.rint(sol.x).astype(int)
@@ -683,7 +682,9 @@ class Searcher:
                 target=build['weapon'] if part=='weapon' else build['armor'][part]
                 for size,i in vs.items():
                     for _ in range(x[i]): target.setdefault('jewels',[]).append(queues[size].pop())
+            validation_start=time.monotonic()
             report=self.e.evaluate(build)
+            validation_seconds+=time.monotonic()-validation_start
             normal={s['id']:s for s in report['skills']}; zenith={s['id']:s for s in report['zenith']}
             ok=report['valid'] and satisfies(report,req) and all(self.achieved(report,sid,pt) for sid,pt in wanted.items()) and not self.forbidden_hit(report,forbidden)
             if br and any(banned_skill(s['ja'],br,wt,WEAPON_SECRET.values()) and s['status'] in ('active','overlap') for s in report['skills']): ok=False
@@ -694,9 +695,10 @@ class Searcher:
                 effect_key=self.effect_key(build,report) if req.get('dedupe_effects') else None
                 if key not in seen_builds and (effect_key is None or effect_key not in seen_effects):
                     # In diversity mode, exclude this five-piece armor combination only after validation.
-                    if req.get('diverse_armor'):
+                    if diversify:
                         model.add({i:1 for choices in armor_vars.values() for i in choices if x[i]},high=len(PARTS)-1)
                     seen_builds.add(key); seen_effects.add(effect_key); results.append({'build':build,'evaluation':report,'new_jewels':int(sum(x[i]*v for vs in jewel_vars.values() for i,v in vs.items())),'solver_optimal_for_relaxed_model':sol.status==0})
+                    if first_candidate is None:first_candidate=time.monotonic()-start
                     self.emit_progress(results, req, start)
                 else: duplicates+=1
             else:
@@ -721,21 +723,9 @@ class Searcher:
             ones=sum(x[i] for i in decisions); model.add({i:-1 if x[i] else 1 for i in decisions},low=1-ones)
             if sol.status==1: status='time_limit'; break
         if len(results)>=limit: status='result_limit'
-        return {'status':status,'objective':objective,'results':self.rank(results,req),'attempts':attempts,'rejected':rejected,'rejection_reasons':dict(rejection_reasons),'rejection_samples':rejection_samples,'rejection_log':rejection_log,'duplicates':duplicates,'pool_counts':pool_counts,'eligible_armor':eligible_armor,'eligible_jewels_in_mode':eligible_jewel_count,'eligible_cuffs_in_mode':eligible_cuff_count,'pool_mode':'full' if req.get('full_jewel_pool') or objective=='max_skills' else 'prioritized' if req.get('_fast_armor_cap') else 'focused','model_variables':len(model.cost),'model_constraints':len(model.rows),'slot_cuts':len(slot_cuts),'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,'notes':['Only selected candidate pools and supported abilities; defense/resistance scope is armor plus supported flat skills and optional external effects.','Focused pools include Zenith prerequisites and their composite providers; full pool includes all supported jewels and cuffs. Both may miss solutions. Objectives are relaxed point attainment followed by actual activation ranking, not global game-optimal results.','Rain and unresolved evaluator rules are not fully verified. No result is not proof of game impossibility.']}
+        return {'status':status,'objective':objective,'results':self.rank(results,req)[:limit],'attempts':attempts,'rejected':rejected,'rejection_reasons':dict(rejection_reasons),'rejection_samples':rejection_samples,'rejection_log':rejection_log,'duplicates':duplicates,'pool_counts':pool_counts,'eligible_armor':eligible_armor,'eligible_jewels_in_mode':eligible_jewel_count,'eligible_cuffs_in_mode':eligible_cuff_count,'pool_mode':'full' if req.get('full_jewel_pool') or objective=='max_skills' else 'prioritized' if req.get('_fast_armor_cap') else 'focused','model_variables':len(model.cost),'model_constraints':len(model.rows),'slot_cuts':len(slot_cuts),'timings':{'model_build_seconds':round(build_seconds,6),'solve_seconds':round(solve_seconds,6),'validation_seconds':round(validation_seconds,6),'first_candidate_seconds':round(first_candidate,6) if first_candidate is not None else None},'elapsed_seconds':round(time.monotonic()-start,3),'complete_game_search':False,'notes':['Only selected candidate pools and supported abilities; defense/resistance scope is armor plus supported flat skills and optional external effects.','Focused pools include Zenith prerequisites and their composite providers; full pool includes all supported jewels and cuffs. Both may miss solutions. Objectives are relaxed point attainment followed by actual activation ranking, not global game-optimal results.','Rain and unresolved evaluator rules are not fully verified. No result is not proof of game impossibility.']}
 
 
-    # Apply physical weapon filters consistently to fixed and automatically selected weapons.
-    def weapon_permitted(self, row, req):
-        if row is None: return False
-        if 'weapon_candidates' in req and not any(x['page']==row['page'] and x['anchor']==row['anchor'] for x in req['weapon_candidates']): return False
-        if req.get('bounty') and not weapon_allowed(row,rules(req['bounty'])): return False
-        filters=req.get('weapon_filters',{})
-        excluded=set(req.get('exclude',[]))
-        if excluded.intersection((row['name_source'],row['name_ja'],f"{row['page']}#{row['anchor']}",str(row['upstream_id']))): return False
-        if 'categories' in filters and row['category'] not in filters['categories']: return False
-        for key,op in [('min_rarity',lambda a,b:a>=b),('max_rarity',lambda a,b:a<=b)]:
-            if key in filters and (row['rarity'] is None or not op(row['rarity'],filters[key])): return False
-        return True
 
     # Equivalent weapon groups share slot behavior and skill contributions; no DPS equivalence is implied.
     def weapon_groups(self, req):
@@ -775,7 +765,7 @@ class Searcher:
     def search_weapons(self, req):
         start=time.monotonic(); seconds=float(req.get('seconds',15)); limit=int(req.get('limit',3)); max_groups=req.get('weapon_group_limit'); per_group=req.get('results_per_weapon_group',limit if req.get('search_strategy')=='adaptive' else 1)
         if not math.isfinite(seconds) or not 0<seconds<=300 or not 1<=limit<=30 or (max_groups is not None and (type(max_groups) is not int or not 1<=max_groups<=100)) or type(per_group) is not int or not 1<=per_group<=30: raise ValueError('invalid search limits')
-        groups,skipped=self.weapon_groups(req); hits=[]; reports=[]; attempts=rejected=0; rejection_reasons=Counter(); rejection_log=[]; rejection_samples=[]
+        groups,skipped=self.weapon_groups(req); hits=list(req.get('_initial_hits',[])); reports=[]; attempts=rejected=0; rejection_reasons=Counter(); rejection_log=[]; rejection_samples=[]
         selected=groups if max_groups is None else groups[:max_groups]
         # A single allowed group must not silently cap a multi-result search at one.
         # Keep an explicit per-group cap and the existing multi-group distribution.
@@ -783,13 +773,25 @@ class Searcher:
             per_group=limit
         adaptive=req.get('search_strategy')=='adaptive' and not req.get('full_jewel_pool')
         def result_key(h):
-            return tuple((p,a['item']) for p,a in sorted(h['build']['armor'].items())) if req.get('diverse_armor') else self.effect_key(h['build'],h['evaluation']) if req.get('dedupe_effects') else self.build_key(h['build'])
-        seen=set()
+            return tuple((p,a['item']) for p,a in sorted(h['build']['armor'].items())) if req.get('diverse_armor') and not req.get('collect_variants') else self.effect_key(h['build'],h['evaluation']) if req.get('dedupe_effects') else self.build_key(h['build'])
+        selector_groups={(r['page'],r['anchor']):index for index,(_,_,rows) in enumerate(groups) for r in rows}
+        def capped(source):
+            counts=Counter();seen_keys=set();kept=[]
+            for hit in self.rank(source,req):
+                key=result_key(hit)
+                if key in seen_keys:continue
+                w=hit['build'].get('weapon',{});selector=(w.get('page'),w.get('anchor'))
+                group=selector_groups.get(selector,selector)
+                if counts[group]>=per_group:continue
+                kept.append(hit);counts[group]+=1;seen_keys.add(key)
+            return kept
+        hits=capped(hits);seen={result_key(h) for h in hits}
         for i,(_,_,rows) in enumerate(selected):
             remaining=seconds-(time.monotonic()-start)
             if remaining<=.05: break
             r=rows[0]; sub=copy.deepcopy(req); sub['auto_weapon']=False; sub['_live_group']=True
             sub['weapon']={**req.get('weapon',{}),'page':r['page'],'anchor':r['anchor']}
+            sub['_initial_hits']=[h for h in req.get('_initial_hits',[]) if h['build'].get('weapon',{}).get('page')==r['page'] and h['build'].get('weapon',{}).get('anchor')==r['anchor']]
             sub['seconds']=min(remaining,max(2.0,remaining/(len(selected)-i))); sub['limit']=min(limit,per_group)
             # One representative per group: equivalent alternatives remain visible to the user.
             result=self.search_with_strategy(sub); attempts+=result['attempts']; rejected+=result['rejected']
@@ -801,6 +803,7 @@ class Searcher:
                 h['weapon_group']={'representative':{'name':r['name_source'],'id':r['upstream_id'],'level':r['level']},'equivalent_count':len(rows),
                     'alternatives':[{'page':a['page'],'anchor':a['anchor'],'name':a['name_source'],'level':a['level']} for a in rows[1:21]],'alternatives_truncated':len(rows)>21}
                 hits.append(h); seen.add(result_key(h))
+            hits=capped(hits);seen={result_key(h) for h in hits}
             if self.progress is not None:
                 # Avoid displaying duplicate equipment groups or unverified candidates.
                 unique_progress = {}
@@ -830,13 +833,6 @@ class Searcher:
         slots=report['slots']
         return armor,weapon,normal,zenith,automatic,slots['used'],slots['capacity'],slots['cuff_used'],json.dumps(report.get('defense_stats'),sort_keys=True)
 
-    # Placement of identical jewels is irrelevant to the current point-based evaluator.
-    def build_key(self, build):
-        armor=tuple((p,self.e.equipment(a['item'],p)['id'],a['level']) for p,a in sorted(build['armor'].items()))
-        weapon=build.get('weapon',{}); wk=tuple((k,weapon[k]) for k in ('page','anchor','template','sigils','slots','slot_mode') if k in weapon)
-        jewels=Counter(self.e.equipment(j,'jewel')['id'] for a in list(build['armor'].values())+[weapon] for j in a.get('jewels',[]))
-        cuffs=Counter(self.e.equipment(c,'cuff')['id'] for c in build.get('cuffs',[]))
-        return armor,wk,tuple(sorted(jewels.items())),tuple(sorted(cuffs.items()))
 
     # Probe additional skill targets individually, preserving all original hard constraints.
     def probe(self, req, candidates=None, seconds=30, candidate_limit=12):

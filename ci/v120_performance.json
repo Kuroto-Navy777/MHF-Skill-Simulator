@@ -1,0 +1,253 @@
+{
+  "before": {
+    "engine_version": "1.1.2",
+    "module_import_seconds": 0.90127,
+    "cold_init_seconds": 0.785746,
+    "warm_init_seconds": 0.77108,
+    "initial_memory": {
+      "working_set_mib": 253.887,
+      "peak_working_set_mib": 422.668
+    },
+    "cases": {
+      "four_skills_standard": {
+        "wall_seconds": 0.289214,
+        "model_build_seconds": 0.109128,
+        "solver_seconds": 0.141517,
+        "first_candidate_seconds": 0.155152,
+        "cpu_seconds": 0.4375,
+        "results": 5,
+        "distinct_armor": 2,
+        "prior_armor_distances": [
+          2,
+          0,
+          0,
+          0
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 261.793,
+        "peak_working_set_mib": 422.668
+      },
+      "four_skills_diverse": {
+        "wall_seconds": 0.275796,
+        "model_build_seconds": 0.103618,
+        "solver_seconds": 0.152876,
+        "first_candidate_seconds": 0.129537,
+        "cpu_seconds": 0.375,
+        "results": 5,
+        "distinct_armor": 5,
+        "prior_armor_distances": [
+          2,
+          1,
+          1,
+          1
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 261.824,
+        "peak_working_set_mib": 422.668
+      },
+      "road15_fixed": {
+        "wall_seconds": 0.797971,
+        "model_build_seconds": 0.046097,
+        "solver_seconds": 0.727137,
+        "first_candidate_seconds": 0.199573,
+        "cpu_seconds": 1.09375,
+        "results": 5,
+        "distinct_armor": 1,
+        "prior_armor_distances": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 264.922,
+        "peak_working_set_mib": 422.668
+      },
+      "road15_earplug": {
+        "wall_seconds": 0.74562,
+        "model_build_seconds": 0.047616,
+        "solver_seconds": 0.676977,
+        "first_candidate_seconds": 0.160998,
+        "cpu_seconds": 1.015625,
+        "results": 5,
+        "distinct_armor": 1,
+        "prior_armor_distances": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 264.207,
+        "peak_working_set_mib": 422.668
+      }
+    }
+  },
+  "after": {
+    "engine_version": "1.2.0",
+    "module_import_seconds": 0.784966,
+    "cold_init_seconds": 0.826324,
+    "warm_init_seconds": 0.00459,
+    "initial_memory": {
+      "working_set_mib": 241.387,
+      "peak_working_set_mib": 245.707
+    },
+    "cases": {
+      "four_skills_standard": {
+        "wall_seconds": 0.3027,
+        "model_build_seconds": 0.099213,
+        "solver_seconds": 0.190899,
+        "first_candidate_seconds": 0.127013,
+        "cpu_seconds": 0.296875,
+        "results": 5,
+        "distinct_armor": 5,
+        "prior_armor_distances": [
+          4,
+          5,
+          5,
+          5
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 250.953,
+        "peak_working_set_mib": 255.973
+      },
+      "four_skills_diverse": {
+        "wall_seconds": 0.140969,
+        "model_build_seconds": 0.101931,
+        "solver_seconds": 0.0349,
+        "first_candidate_seconds": 0.101774,
+        "cpu_seconds": 0.140625,
+        "results": 5,
+        "distinct_armor": 5,
+        "prior_armor_distances": [
+          4,
+          4,
+          5,
+          5
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 251.496,
+        "peak_working_set_mib": 256.652
+      },
+      "road15_fixed": {
+        "wall_seconds": 0.975969,
+        "model_build_seconds": 0.032708,
+        "solver_seconds": 0.925138,
+        "first_candidate_seconds": 0.243596,
+        "cpu_seconds": 0.96875,
+        "results": 5,
+        "distinct_armor": 1,
+        "prior_armor_distances": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 254.305,
+        "peak_working_set_mib": 265.258
+      },
+      "road15_earplug": {
+        "wall_seconds": 0.76704,
+        "model_build_seconds": 0.050902,
+        "solver_seconds": 0.696246,
+        "first_candidate_seconds": 0.160428,
+        "cpu_seconds": 0.765625,
+        "results": 5,
+        "distinct_armor": 1,
+        "prior_armor_distances": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "rejected": 0,
+        "status": "result_limit",
+        "working_set_mib": 251.633,
+        "peak_working_set_mib": 267.551
+      }
+    },
+    "reservoir": {
+      "builds": 256,
+      "index_filter_seconds": 0.000878,
+      "query_median_seconds": 0.0423517000162974,
+      "query_p95_seconds": 0.04284690000349656,
+      "bounded_payload_mib": 4.761,
+      "working_set_mib": 279.41,
+      "peak_working_set_mib": 279.41
+    }
+  },
+  "browser_index": {
+    "candidates": 256,
+    "visible_skill_rows": 40,
+    "index_build_ms": 14.539499999999997,
+    "naive_scan": {
+      "median_ms": 3.3915999999999826,
+      "p95_ms": 3.6244999999999976
+    },
+    "bitset": {
+      "median_ms": 0.1039999999999992,
+      "p95_ms": 0.15800000000000125
+    },
+    "heap_delta_mib": 2.866943359375,
+    "process_rss_mib": 75.50390625
+  },
+  "contention_before": {
+    "engine_version": "1.1.2",
+    "scenario": "one logical CPU; foreground 1.5ms per 10ms; below-normal search worker",
+    "solver_budget_seconds": 4,
+    "real_game_started": false,
+    "worker_exit": 0,
+    "worker_wall_seconds": 6.344427499978337,
+    "worker_cpu_seconds": 4.375,
+    "worker_peak_mib": 305.484375,
+    "foreground_samples": 633,
+    "foreground_p95_delay_ms": 0.5632989341393113,
+    "foreground_max_delay_ms": 28.777394734788686,
+    "search_status": "time_limit",
+    "verified_results": 1,
+    "rejected": 1
+  },
+  "contention_after": {
+    "engine_version": "1.2.0",
+    "scenario": "one logical CPU; foreground 1.5ms per 10ms; below-normal search worker",
+    "solver_budget_seconds": 4,
+    "real_game_started": false,
+    "worker_exit": 0,
+    "worker_wall_seconds": 6.855683200003114,
+    "worker_cpu_seconds": 4.734375,
+    "worker_peak_mib": 294.77734375,
+    "foreground_samples": 684,
+    "foreground_p95_delay_ms": 0.8597990963608027,
+    "foreground_max_delay_ms": 33.30939851002768,
+    "search_status": "time_limit",
+    "verified_results": 1,
+    "rejected": 0
+  },
+  "brute_force_packings": 396,
+  "reader_comparison": {
+    "catalog": {
+      "mode": "full",
+      "module_import_seconds": 0.8188429999863729,
+      "reader_init_seconds": 0.8183967000222765,
+      "solver_imported": true,
+      "working_set_mib": 240.7265625,
+      "peak_working_set_mib": 245.4921875
+    },
+    "on_demand": {
+      "mode": "on-demand",
+      "module_import_seconds": 0.032829899981152266,
+      "reader_init_seconds": 0.0020738999592140317,
+      "solver_imported": false,
+      "working_set_mib": 25.80859375,
+      "peak_working_set_mib": 25.80859375
+    }
+  }
+}

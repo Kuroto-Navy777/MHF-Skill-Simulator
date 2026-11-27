@@ -1,0 +1,354 @@
+{
+  "road15": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "job": "剣士",
+      "armor": {
+        "head": {
+          "item": "head:0:8765",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2275",
+            "jewel:0:2275",
+            "jewel:0:2276"
+          ]
+        },
+        "body": {
+          "item": "body:0:7943",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2199",
+            "jewel:0:1740",
+            "jewel:0:1739"
+          ]
+        },
+        "arm": {
+          "item": "arm:0:8273",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2096",
+            "jewel:0:2316"
+          ]
+        },
+        "waist": {
+          "item": "waist:0:8218",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2316",
+            "jewel:0:2138",
+            "jewel:0:2213"
+          ]
+        },
+        "leg": {
+          "item": "leg:0:6625",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2213",
+            "jewel:0:2213",
+            "jewel:0:2212"
+          ]
+        }
+      },
+      "cuffs": [
+        "cuff:1:1180",
+        "cuff:0:1701"
+      ]
+    },
+    "required": [
+      {
+        "skill": "磁斬鎚技【磁星】"
+      },
+      {
+        "skill": "不退ノ構"
+      },
+      {
+        "skill": "剛撃+6"
+      },
+      {
+        "skill": "一閃+3"
+      },
+      {
+        "skill": "獅子奮迅"
+      },
+      {
+        "skill": "纏雷"
+      },
+      {
+        "skill": "猛進"
+      },
+      {
+        "skill": "剣神+2"
+      },
+      {
+        "skill": "一点突破"
+      },
+      {
+        "skill": "溜め威力UP+2"
+      },
+      {
+        "skill": "巧流"
+      },
+      {
+        "skill": "消費特効"
+      },
+      {
+        "skill": "閃転"
+      },
+      {
+        "skill": "雌伏"
+      },
+      {
+        "skill": "餓狼+2"
+      },
+      {
+        "skill": "スキル枠拡張+2"
+      },
+      {
+        "skill": "纏雷強化+1"
+      }
+    ]
+  },
+  "road-earplug": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "job": "剣士",
+      "armor": {
+        "head": {
+          "item": "head:0:8765",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2275",
+            "jewel:0:2275",
+            "jewel:0:2275"
+          ]
+        },
+        "body": {
+          "item": "body:0:7943",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:1940",
+            "jewel:0:2199",
+            "jewel:0:1741"
+          ]
+        },
+        "arm": {
+          "item": "arm:0:8273",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2096",
+            "jewel:0:2316"
+          ]
+        },
+        "waist": {
+          "item": "waist:0:8218",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2316",
+            "jewel:0:2138",
+            "jewel:0:2213"
+          ]
+        },
+        "leg": {
+          "item": "leg:0:6625",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2213",
+            "jewel:0:2212",
+            "jewel:0:2212"
+          ]
+        }
+      },
+      "cuffs": [
+        "cuff:0:1895",
+        "cuff:1:1180"
+      ]
+    },
+    "required": [
+      {
+        "skill": "磁斬鎚技【磁星】"
+      },
+      {
+        "skill": "不退ノ構"
+      },
+      {
+        "skill": "剛撃+6"
+      },
+      {
+        "skill": "一閃+3"
+      },
+      {
+        "skill": "獅子奮迅"
+      },
+      {
+        "skill": "纏雷"
+      },
+      {
+        "skill": "猛進"
+      },
+      {
+        "skill": "剣神+2"
+      },
+      {
+        "skill": "一点突破"
+      },
+      {
+        "skill": "溜め威力UP+2"
+      },
+      {
+        "skill": "巧流"
+      },
+      {
+        "skill": "消費特効"
+      },
+      {
+        "skill": "閃転"
+      },
+      {
+        "skill": "雌伏"
+      },
+      {
+        "skill": "餓狼+2"
+      },
+      {
+        "skill": "スキル枠拡張+2"
+      },
+      {
+        "skill": "纏雷強化+1"
+      },
+      {
+        "skill": "耳栓強化+1"
+      }
+    ]
+  },
+  "road16": {
+    "build": {
+      "weapon_type": "MS",
+      "sex": "男",
+      "g_poogie": true,
+      "premium_poogie_clothes": true,
+      "weapon": {
+        "virtual": true,
+        "slots": 3,
+        "slot_mode": "decoration",
+        "sigils": 0,
+        "jewels": [
+          "jewel:0:1732",
+          "jewel:0:1712",
+          "jewel:0:1599"
+        ]
+      },
+      "job": "剣士",
+      "armor": {
+        "head": {
+          "item": "head:0:8765",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2329",
+            "jewel:0:2310"
+          ]
+        },
+        "body": {
+          "item": "body:0:7943",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2275",
+            "jewel:0:2275",
+            "jewel:0:2275"
+          ]
+        },
+        "arm": {
+          "item": "arm:0:8273",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2213",
+            "jewel:0:2213"
+          ]
+        },
+        "waist": {
+          "item": "waist:0:8218",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2181",
+            "jewel:0:2098",
+            "jewel:0:2096"
+          ]
+        },
+        "leg": {
+          "item": "leg:0:6625",
+          "level": "L1",
+          "jewels": [
+            "jewel:0:2053",
+            "jewel:0:2053",
+            "jewel:0:1872"
+          ]
+        }
+      },
+      "cuffs": [
+        "cuff:0:1785",
+        "cuff:1:1185"
+      ]
+    },
+    "required": [
+      {
+        "skill": "磁斬鎚技【磁星】"
+      },
+      {
+        "skill": "不退ノ構"
+      },
+      {
+        "skill": "剛撃+6"
+      },
+      {
+        "skill": "一閃+3"
+      },
+      {
+        "skill": "獅子奮迅"
+      },
+      {
+        "skill": "纏雷"
+      },
+      {
+        "skill": "猛進"
+      },
+      {
+        "skill": "剣神+2"
+      },
+      {
+        "skill": "一点突破"
+      },
+      {
+        "skill": "溜め威力UP+2"
+      },
+      {
+        "skill": "巧流"
+      },
+      {
+        "skill": "消費特効"
+      },
+      {
+        "skill": "閃転"
+      },
+      {
+        "skill": "雌伏"
+      },
+      {
+        "skill": "餓狼+2"
+      },
+      {
+        "skill": "スキル枠拡張+2"
+      },
+      {
+        "skill": "纏雷強化+1"
+      },
+      {
+        "skill": "豪放+3"
+      }
+    ]
+  }
+}

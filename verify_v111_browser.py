@@ -1,5 +1,5 @@
 """Optional browser regression harness. Requires Playwright and Chromium; API calls use TestClient."""
-import sys,json,re,os,shutil
+import sys,json,re,os,shutil,tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from fastapi.testclient import TestClient
@@ -7,7 +7,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from web_api import create_app
 root=Path(__file__).resolve().parent; db=Path(os.environ['MHF_TEST_DB'])
 html=(root/'web/index.html').read_text();html=re.sub(r'<script src="/static/app.js[^>]*></script>','',html);html=re.sub(r'<link[^>]*href="/static/[^>]*>','',html)
-with TestClient(create_app(db)) as client, sync_playwright() as pw:
+with tempfile.TemporaryDirectory(prefix='mhf-browser-test-') as cache_dir, TestClient(create_app(db,candidate_cache_path=Path(cache_dir)/'search-cache.json')) as client, sync_playwright() as pw:
  browser=pw.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or shutil.which('chromium'),args=['--no-sandbox']);errors=[];calls=[]
  def new_page(data=None):
   page=browser.new_page(viewport={'width':1400,'height':900});page.on('pageerror',lambda e:errors.append(str(e)))

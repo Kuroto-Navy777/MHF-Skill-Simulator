@@ -44,19 +44,26 @@ def enrich(db, build):
     for k in build.get('cuffs', []):
         items[k] = None
     for k in items:
-        rows = db.execute('SELECT id,ja,en,slots FROM equipment WHERE id=? OR ja=? OR en=?',(k,k,k)).fetchall()
+        rows = db.execute('SELECT id,ja,en,slots FROM equipment WHERE id=?',(k,)).fetchall()
+        if not rows:rows=db.execute('SELECT id,ja,en,slots FROM equipment WHERE ja=? OR en=?',(k,k)).fetchall()
         if len(rows) == 1:
             items[k] = dict(rows[0])
     w=build.get('weapon',{})
     weapon=None
+    if w.get('virtual') is True:
+        weapon={'virtual':True,'ja':'仮想武器スロット','en':'Virtual weapon slots','slots':w['slots'],'slot_mode':w['slot_mode']}
     if 'page' in w:
         row=db.execute(f'SELECT v.name_source,{JA} AS name_ja,COALESCE({JA},v.name_source) AS ja,v.name_source AS en,v.weapon_type,v.upstream_id,v.rarity,v.attack,v.slots_reported,v.slot_mode,v.level FROM {JOIN} WHERE v.weapon_type=? AND v.page=? AND v.anchor=?',(build['weapon_type'],w['page'],w['anchor'])).fetchone()
         weapon=dict(row) if row else None
     return {'items':items,'weapon':weapon}
 
 # Search jobs run in separate processes, so cancellation terminates the actual solver.
-def create_app(db_path, game_priority=None):
+def create_app(db_path, game_priority=None, candidate_cache_path=None):
     db_path=Path(db_path).resolve()
+    from candidate_service import CandidateService
+    if candidate_cache_path is None and os.environ.get('LOCALAPPDATA'):
+        candidate_cache_path=Path(os.environ['LOCALAPPDATA'])/'MHFSkillSimulator'/'search-cache-v120.json'
+    candidates=CandidateService(db_path,candidate_cache_path)
     jobs={}
     lock=threading.Lock()
     temp=tempfile.TemporaryDirectory(prefix='mhf-web-')
@@ -73,11 +80,13 @@ def create_app(db_path, game_priority=None):
                         stop_worker(j)
                     except (OSError, subprocess.TimeoutExpired):
                         logging.getLogger(__name__).exception('Solver cleanup failed')
+            candidates.close()
             temp.cleanup()
 
     app=FastAPI(title='MHF Skill Simulator',docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
     app.state.temp=temp
     app.state.jobs=jobs
+    app.state.candidates=candidates
     # Serve JavaScript explicitly, independently of Windows MIME registry settings.
     @app.get('/static/app.js', include_in_schema=False)
     def app_script():
@@ -211,7 +220,7 @@ def create_app(db_path, game_priority=None):
         from skill_engine import Engine
         try:
             with closing(connect(db_path)) as db:
-                return {'build':build,'evaluation':Engine(db).evaluate(build),'display':enrich(db,build)}
+                return {'build':build,'evaluation':candidates.evaluate(build),'display':enrich(db,build)}
         except (ValueError,KeyError,TypeError,sqlite3.Error) as e:
             raise HTTPException(400,str(e)) from e
 
@@ -243,6 +252,29 @@ def create_app(db_path, game_priority=None):
         except (ValueError,KeyError,TypeError,sqlite3.Error) as e:
             raise HTTPException(400,str(e)) from e
 
+    @app.post('/api/candidates/query')
+    def query_candidates(payload:dict):
+        if len(json.dumps(payload))>150000:raise HTTPException(400,'candidate query too large')
+        req=payload.get('request',payload)
+        try:
+            response=candidates.query(req,payload.get('targets',[]),limit=min(64,max(1,int(payload.get('display_limit',30)))))
+            with closing(connect(db_path)) as db:
+                for h in response['results']:
+                    if 'display' not in h:h['display']=enrich(db,h['build'])
+            return response
+        except (OSError,sqlite3.Error) as exc:raise HTTPException(503,'candidate database unavailable') from exc
+        except (ValueError,TypeError,KeyError) as exc:raise HTTPException(400,str(exc)) from exc
+
+    @app.post('/api/candidates/variants')
+    def candidate_variants(payload:dict):
+        if len(json.dumps(payload))>150000:raise HTTPException(400,'variant query too large')
+        try:
+            response=candidates.variants(payload['request'],payload['armor'],payload.get('exclude'))
+            with closing(connect(db_path)) as db:
+                for h in response['results']:h['display']=enrich(db,h['build'])
+            return response
+        except (ValueError,TypeError,KeyError) as exc:raise HTTPException(400,str(exc)) from exc
+
     # At most one active job; retain a bounded number of finished jobs in temporary files.
     @app.post('/api/search')
     def search(payload:dict):
@@ -256,7 +288,7 @@ def create_app(db_path, game_priority=None):
         with lock:
             if requested in jobs:
                 existing=jobs[requested]
-                if json.loads(existing['request'].read_text(encoding='utf-8'))!=payload:
+                if existing.get('client_request',json.loads(existing['request'].read_text(encoding='utf-8')))!=payload:
                     raise HTTPException(409,'search job ID already used for different conditions')
                 return {'id':requested,'status':'running'}
             if any(j['process'].poll() is None and not j.get('cancelled') for j in jobs.values()):
@@ -271,11 +303,22 @@ def create_app(db_path, game_priority=None):
             key=requested or uuid.uuid4().hex
             base=Path(temp.name)/key
             req=base.with_suffix('.json'); out=base.with_suffix('.out'); err=base.with_suffix('.err')
+            client_request=dict(payload)
+            try:
+                if payload.get('_pool_discovery'):
+                    coverage=candidates.coverage_targets(payload,int(payload.get('_coverage_pass',1)))
+                    if coverage:payload['optional']=coverage
+                seeds,exclusions=candidates.seed(payload,explore=bool(payload.get('_pool_discovery')))
+                if seeds:payload['_seed_builds']=seeds
+                if exclusions:payload['_excluded_armor_sets']=exclusions
+            except (OSError,sqlite3.Error,ValueError,KeyError,TypeError):
+                # Preserve the worker's existing detailed input-error behavior.
+                pass
             req.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')
-            low_priority = bool(game_priority and game_priority())
+            low_priority = bool(payload.get('live_preview') or (game_priority and game_priority()))
             with (open(os.devnull, 'wb') if getattr(sys, 'frozen', False) else err.open('wb')) as log:
-                proc=subprocess.Popen(search_command(ROOT, db_path, req, out, err),cwd=ROOT,stdout=log,stderr=log,creationflags=creation_flags(low_priority))
-            jobs[key]={'process':proc,'request':req,'output':out,'error':err,'started':time.monotonic(),'guard':attach_worker(proc)}
+                proc=subprocess.Popen(search_command(ROOT, db_path, req, out, err),cwd=ROOT,stdout=log,stderr=log,creationflags=creation_flags(low_priority),env={**os.environ,'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'})
+            jobs[key]={'process':proc,'client_request':client_request,'db_identity':candidates.identity,'request':req,'output':out,'error':err,'started':time.monotonic(),'guard':attach_worker(proc)}
         return {'id':key,'status':'running'}
 
     @app.get('/api/search/{key}')
@@ -284,6 +327,12 @@ def create_app(db_path, game_priority=None):
             j=jobs.get(key)
             if not j: raise HTTPException(404,'job not found')
             elapsed=round(time.monotonic()-j['started'],2)
+            if j.get('db_identity'):
+                try:changed=candidates.fingerprint()!=j['db_identity']
+                except OSError:changed=True
+                if changed:
+                    stop_worker(j,graceful=True)
+                    return {'status':'error','detail':'Database changed during search; retry with the current database'}
             if j.get('cancelled'): return {'status':'cancelled','elapsed_seconds':elapsed}
             code=j['process'].poll()
             if code is None:
@@ -298,6 +347,8 @@ def create_app(db_path, game_priority=None):
                             for h in partial.get('results',[]):
                                 h['display'] = enrich(db,h['build'])
                         j['progress_stamp'] = stamp
+                        try:candidates.ingest(j.get('client_request',{}),partial,persist=False)
+                        except (OSError,sqlite3.Error,ValueError,KeyError,TypeError):pass
                         j['progress_result'] = partial
                     reply['partial'] = j['progress_result']
                     reply['revision'] = stamp
@@ -312,6 +363,9 @@ def create_app(db_path, game_priority=None):
             for h in result.get('results',[]):
                 item=h.get('witness',h)
                 if 'build' in item: item['display']=enrich(db,item['build'])
+        if not j.get('ingested'):
+            try:candidates.ingest(j.get('client_request',{}),result);j['ingested']=True
+            except (OSError,sqlite3.Error,ValueError,KeyError,TypeError):pass
         return {'status':'done','result':result}
 
     @app.delete('/api/search/{key}')

@@ -247,3 +247,12 @@ release/
 
 .local/
 *.pub
+
+# Private search reservoirs and local credential configuration
+search-cache*.json
+mhf-backup*.json
+*.backup.json
+.env.*
+.profile/
+profile/
+userdata/
