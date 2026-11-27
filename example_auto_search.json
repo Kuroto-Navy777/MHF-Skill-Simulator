@@ -1,0 +1,39 @@
+{
+  "weapon_type": "MS",
+  "job": "剣士",
+  "sex": "男",
+  "g_poogie": true,
+  "premium_poogie_clothes": true,
+  "weapon": {
+    "page": "buki/magspike.htm",
+    "anchor": "l4244",
+    "jewels": [],
+    "sigils": 1
+  },
+  "required": [
+    {
+      "skill": "剛撃+6"
+    },
+    {
+      "skill": "不退ノ構"
+    },
+    {
+      "skill": "磁斬鎚技",
+      "points": 30
+    },
+    {
+      "skill": "豪放+3"
+    },
+    {
+      "skill": "耳栓強化+1"
+    },
+    {
+      "skill": "風圧強化+1"
+    },
+    {
+      "skill": "耐震強化+1"
+    }
+  ],
+  "limit": 1,
+  "seconds": 20
+}

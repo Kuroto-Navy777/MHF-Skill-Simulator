@@ -1,0 +1,65 @@
+{
+  "weapon_type": "MS",
+  "job": "剣士",
+  "sex": "男",
+  "g_poogie": true,
+  "premium_poogie_clothes": true,
+  "armor": {
+    "head": {
+      "item": "フィンスZPヘッド",
+      "level": "L1",
+      "jewels": []
+    },
+    "body": {
+      "item": "グリディZXメイル",
+      "level": "L1",
+      "jewels": []
+    },
+    "arm": {
+      "item": "バルラZXアーム",
+      "level": "L1",
+      "jewels": []
+    },
+    "waist": {
+      "item": "グラビZXコイル",
+      "level": "L1",
+      "jewels": []
+    },
+    "leg": {
+      "item": "プリブZPフット",
+      "level": "L1",
+      "jewels": []
+    }
+  },
+  "weapon": {
+    "page": "buki/magspike.htm",
+    "anchor": "l4244",
+    "jewels": [],
+    "sigils": 1
+  },
+  "cuffs": [
+    "磁星カフ・剛撃",
+    "猛進強化カフPZ２"
+  ],
+  "required": [
+    {
+      "skill": "剛撃+6"
+    },
+    {
+      "skill": "不退ノ構"
+    },
+    {
+      "skill": "磁斬鎚技",
+      "points": 30
+    },
+    {
+      "skill": "巧撃"
+    },
+    {
+      "skill": "豪放+3"
+    }
+  ],
+  "limit": 1,
+  "seconds": 20,
+  "objective": "max_skills"
+}

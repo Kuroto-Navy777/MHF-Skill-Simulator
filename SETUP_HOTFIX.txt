@@ -1,0 +1,6 @@
+RC3 setup launcher hotfix
+
+Extract setup_windows.bat from this ZIP and overwrite the original in the fully extracted RC3 application folder.
+This only changes startup diagnostics and folder handling. It does not modify the database, Python environment, or other application files.
+Run from a command prompt if the console never appears.
+Windows execution has not been tested in the Linux development environment.

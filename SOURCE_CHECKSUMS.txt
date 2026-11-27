@@ -1,0 +1,8 @@
+Source archives (not included):
+143acf764912a25be93fd84110362ade43d1224c73e69adb375d8b109370f71e  20191218+NI.zip
+beff93716a4cbc8d4c933c7c82cf3df5de8cd6e907d65474c176f52b2f08b78e  MHSX2G Normal Dat_6620221058.zip
+87e4dff84cf6ab4cdbaaa26a654ec8ba4170849086ee84536928047e9907320f  Pax-MHFZ-Data-Collection-main.zip
+73a7b6d985c401bd616f6b10c3819631c3588ffe74d34ee4544d0176ca380fab  MHFZ-Ferias-English-Project-main.zip
+
+Master database SHA-256:
+36f4ef74d9664785e711ab51ac68847377892630f8b8ff11a4a29bd35ef79e7c  mhf_master.sqlite

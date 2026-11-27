@@ -1,0 +1,4 @@
+-r requirements.txt
+-r requirements_desktop.txt
+pyinstaller>=6.12,<7
+cryptography>=44,<48

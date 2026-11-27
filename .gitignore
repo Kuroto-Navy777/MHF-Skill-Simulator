@@ -221,3 +221,26 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+*.zip
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.xml
+/data/
+/raw/
+__pycache__/
+
+.build-venv/
+release/
+
+# Signing keys must never enter Git
+*.pem
+*.key
+.signing/
+*.pfx
+*.p12
+*.sqlite3
+*.sqlite3-*
+*.sqlite-wal
+*.sqlite-shm
