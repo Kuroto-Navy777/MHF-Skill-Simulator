@@ -36,7 +36,8 @@ def restrict_inventory(req, items, resolve):
         if any(type(n) is not int or n < 0 for n in prior.values()):
             raise ValueError('invalid prior inventory limit')
         req[limits] = {k: min(counts[k], prior.get(k, counts[k])) for k in req[key]}
-        fixed = req.get('cuffs', []) if kind == 'cuff' else [j for a in [*req.get('armor', {}).values(), req.get('weapon', {})] for j in a.get('jewels', [])]
+        from partial_build import fixed_jewels
+        fixed = req.get('cuffs', req.get('fixed_cuffs',[])) if kind == 'cuff' else [j for part in (*ARMOR,'weapon') for j in fixed_jewels(req,part)]
         used = Counter(resolve(k, kind)['id'] for k in fixed)
         if any(n > req[limits].get(k, 0) for k, n in used.items()):
             raise ValueError('fixed ' + kind + ' exceeds owned quantity')

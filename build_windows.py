@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 
 # Fail before PyInstaller if an incremental source update was skipped.
 REQUIRED_BUILD_FILES = (
+    'partial_build.py',
     'launcher.py', 'launcher_update.py', 'desktop_safety.py', 'desktop_info.py', 'desktop_entry.py', 'desktop.py',
     'desktop_lifecycle.py', 'worker_control.py', 'update_progress.py',
     'update_core.py', 'release_check.py', 'runtime_paths.py', 'windows_setup.py',

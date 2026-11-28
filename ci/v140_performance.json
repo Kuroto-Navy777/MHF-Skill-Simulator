@@ -15,11 +15,11 @@
         "weapon": 8985
       },
       "csr_bytes": 3653924,
-      "generation_seconds": 5.432579,
+      "generation_seconds": 5.582456,
       "sqlite_bytes": 71925760
     },
     "population": {
-      "elapsed_seconds": 13.486134,
+      "elapsed_seconds": 13.671742,
       "weapons": {
         "SnS": {
           "generated_builds": 128,
@@ -108,7 +108,7 @@
             "weapon": 8985
           },
           "csr_bytes": 3653924,
-          "generation_seconds": 5.432579,
+          "generation_seconds": 5.582456,
           "sqlite_bytes": 71925760
         },
         "witnesses": 1792,
@@ -116,48 +116,48 @@
         "proofs": 0,
         "tasks": {},
         "schema_version": 140,
-        "calculation_identity": "1e147311bd48ee49e483ccc82bbceee3feeba0f1b569deb6d78dd8e976a43124"
+        "calculation_identity": "a3ac9c85f2198debeb9839d7fe693177e15a370e00b8343ceee9069a65aac0dc"
       }
     },
     "packages": {
-      "all_weapons_download_bytes": 6712840,
+      "all_weapons_download_bytes": 6712372,
       "all_weapons_expanded_bytes": 77113728,
       "rights": {
         "status": "unverified",
         "evidence": null
       }
     },
-    "total_seconds": 31.196536
+    "total_seconds": 31.930396
   },
   "query_profile": {
-    "initialization_seconds": 0.012749599991366267,
-    "first_query_seconds": 0.32198410003911704,
+    "initialization_seconds": 0.016086399999949208,
+    "first_query_seconds": 0.3318023000001631,
     "saved_builds": 1792,
     "saved_patterns": 801,
     "MS_confirmed_builds": 128,
     "MS_distinct_armor": 128,
     "warm_skill_list": {
-      "median_ms": 36.28769997158088,
-      "p95_ms": 38.17660000640899,
-      "cpu_seconds": 1.0625,
+      "median_ms": 37.590150000141875,
+      "p95_ms": 40.13920000033977,
+      "cpu_seconds": 1.125,
       "repetitions": 30
     },
     "warm_skill_add": {
-      "median_ms": 2.6894999900832772,
-      "p95_ms": 3.090500016696751,
+      "median_ms": 2.7965999997832114,
+      "p95_ms": 3.1270999998014304,
       "cpu_seconds": 0.078125,
       "repetitions": 30
     },
     "warm_skill_delete": {
-      "median_ms": 18.842100020265207,
-      "p95_ms": 20.72020003106445,
-      "cpu_seconds": 0.5625,
+      "median_ms": 20.40930000021035,
+      "p95_ms": 22.573199999897042,
+      "cpu_seconds": 0.625,
       "repetitions": 30
     },
     "warm_candidates": {
-      "median_ms": 19.023300032131374,
-      "p95_ms": 21.150299988221377,
-      "cpu_seconds": 0.578125,
+      "median_ms": 20.72900000075606,
+      "p95_ms": 22.723799999766925,
+      "cpu_seconds": 0.609375,
       "repetitions": 30
     },
     "certainty": {
@@ -179,9 +179,9 @@
       "dictionary_bytes": 32768,
       "note": "Dictionary overhead must be included; vectors are exact signed integer IDs."
     },
-    "working_set_mib": 94.594,
-    "peak_working_set_mib": 104.59,
-    "restart_first_query_ms": 341.1105000413954
+    "working_set_mib": 94.328,
+    "peak_working_set_mib": 104.918,
+    "restart_first_query_ms": 344.26129999974364
   },
   "before_same_corpus": {
     "version": "1.3.0",
@@ -454,11 +454,76 @@
       "v140-final.search.facts.csr": 3653924,
       "v140-final.search.sqlite": 9453568
     },
-    "memory_note": "retained_object_bytes uses recursive sys.getsizeof; excludes interpreter, allocator and transient build overhead; Roaring native size follows its __sizeof__."
+    "memory_note": "retained_object_bytes uses recursive sys.getsizeof; excludes interpreter, allocator and transient build overhead; Roaring native size follows its __sizeof__.",
+    "basis": "Same source DB and 801-pattern corpus, earlier 140.1 metadata; final distribution capacities are measured separately in population."
   },
   "limitations": [
     "Finite verified corpus, not all legal equipment combinations.",
     "No derived database assets published: redistribution permission unverified.",
     "Game co-execution not measured; priority/thread/load limits tested separately."
-  ]
+  ],
+  "partial_build": {
+    "completion_wall_seconds": 1.1910185000006095,
+    "completion_status": "result_limit",
+    "confirmed_builds": 5,
+    "distinct_armor": 5,
+    "rejected": 0,
+    "solver_timings": {
+      "model_build_seconds": 0.156,
+      "solve_seconds": 1.015,
+      "validation_seconds": 0.016,
+      "first_candidate_seconds": 0.219
+    },
+    "warm_current_evaluation": {
+      "median_ms": 0.3258500000811182,
+      "p95_ms": 0.41910000072675757,
+      "cpu_seconds": 0.0,
+      "repetitions": 30
+    },
+    "warm_cached_partial_query": {
+      "median_ms": 4.280549999748473,
+      "p95_ms": 4.582800000207499,
+      "cpu_seconds": 0.140625,
+      "repetitions": 30
+    },
+    "scope": "one fixed armor, one fixed armor jewel, one detached pinned jewel, one zero-slot secret cuff; remaining armor/jewels/cuffs automatic",
+    "working_set_mib": 255.961,
+    "peak_working_set_mib": 268.629
+  },
+  "browser_paint": {
+    "paint": {
+      "median_ms": 0.10000000009313226,
+      "max_ms": 1.2999999998137355,
+      "samples": 20
+    },
+    "display": {
+      "median_ms": 0.7000000001862645,
+      "max_ms": 1.1000000000931323,
+      "samples": 20
+    },
+    "display_cards": 1
+  },
+  "idle_controls": {
+    "simulated_high_CPU_suppresses_launch": true,
+    "idle_job_preserves_partial_locks": true,
+    "user_activity_cancels_background_job": true,
+    "actual_game_coexecution_tested": false
+  },
+  "distribution": {
+    "application_no_DB_zip_bytes": 110732034,
+    "application_expanded_bytes": 212978084,
+    "hypothetical_application_and_all_sample_weapon_packs_bytes": 117444406,
+    "derived_packs_published": false,
+    "local_common_SQLite_and_CSR_bytes": 75579684,
+    "local_1792_report_archive_bytes": 9453568,
+    "note": "Local report growth, source DB and WAL are separate from download capacity. Packs remain private until redistribution permission is verified."
+  },
+  "validation": {
+    "python_discovered": 400,
+    "python_skipped": 4,
+    "JS_passed": 41,
+    "real_Chromium_passed": true,
+    "frozen_EXE_passed": true,
+    "frozen_report": "ci/v140_frozen_checks.json"
+  }
 }

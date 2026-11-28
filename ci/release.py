@@ -35,7 +35,7 @@ def audit_index():
     for name in filter(None,files):
         p=Path(name)
         if (p.suffix.lower() in {'.pem','.key','.pfx','.p12','.db','.sqlite','.sqlite3','.zip','.xml'} or
-            p.name.lower().endswith(('.mhfchunk','.mhfpack','.integrity-key','.csr','.sqlite-wal','.sqlite-shm','.db-wal','.db-shm','.sqlite3-wal','.sqlite3-shm')) or
+            p.name.lower().endswith(('.mhfchunk','.mhfpack','.facts-auth.json','.integrity-key','.csr','.sqlite-wal','.sqlite-shm','.db-wal','.db-shm','.sqlite3-wal','.sqlite3-shm')) or
             any(part.startswith('.env') for part in p.parts)):
             raise ValueError(f'Private or unlicensed file in Git index: {name}')
         data=(ROOT/p).read_bytes()
@@ -82,11 +82,19 @@ def wait_ci(commit):
     raise TimeoutError('Tests workflow did not start; release remains a draft')
 
 
-def register_release(version,commit,assets,notes=None,publish=False,promote_main=False):
+def register_release(version,commit,assets,notes=None,publish=False,promote_main=False,replace_draft=False):
     args=['gh','release','create','v'+version,'--repo',REPO,'--target',commit,
           '--title','MHF Skill Simulator v'+version,'--draft']
     args+=['--notes-file',str(notes.resolve())] if notes else ['--generate-notes']
-    run(*args,*sorted(assets))
+    assets=list(assets)
+    if replace_draft:
+        old=json.loads(subprocess.check_output(['gh','release','view','v'+version,'--repo',REPO,'--json','isDraft,targetCommitish'],cwd=ROOT))
+        if not old['isDraft']:raise ValueError('Refusing to replace a published release')
+        run('git','merge-base','--is-ancestor',old['targetCommitish'],commit)
+        edit=['gh','release','edit','v'+version,'--repo',REPO,'--target',commit]
+        if notes:edit+=['--notes-file',str(notes.resolve())]
+        run(*edit);run('gh','release','upload','v'+version,'--repo',REPO,'--clobber',*sorted(assets))
+    else:run(*args,*sorted(assets))
     if publish:
         wait_ci(commit)
         if promote_main:
@@ -106,6 +114,8 @@ def main():
     p.add_argument('--gui-password',action='store_true',help='Unlock the existing key in a local masked dialog')
     p.add_argument('--notes-file',type=Path,help='Release notes; otherwise use generated GitHub notes')
     p.add_argument('--promote-main',action='store_true',help='Fast-forward main only after successful CI')
+    p.add_argument('--replace-draft',action='store_true',help='Replace only a draft from an ancestor commit after fresh validation')
+    p.add_argument('--out',type=Path,help='Separate local build directory for a revised draft')
     a=p.parse_args(); version_key(a.version)
     if a.publish and not a.push: p.error('--publish requires --push')
     if a.promote_main and not a.publish:p.error('--promote-main requires --publish')
@@ -127,7 +137,7 @@ def main():
     run(sys.executable,'-m','unittest','discover','-v',env=env)
     run('node','--test',*[path.name for path in ROOT.glob('test_*.mjs')])
     run(sys.executable,'verify_v140_browser.py' if version_key(a.version)>=version_key('1.4.0') else 'verify_v130_browser.py',env=env)
-    out=ROOT/'release'/a.version
+    out=a.out.resolve() if a.out else ROOT/'release'/a.version
     run(sys.executable,'build_windows.py','--db',a.db,'--pair','--public-key',a.public_key,'--out',out)
     archive=out/f'MHF_SkillSimulator_{a.version}_win_x64_no_DB.zip'
     if version_key(a.version)>=version_key('1.3.0'):
@@ -153,7 +163,7 @@ def main():
     if a.push:
         run('git','push','-u','origin','HEAD')
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT).decode().strip()
-        register_release(a.version,commit,upload.iterdir(),a.notes_file,a.publish,a.promote_main)
+        register_release(a.version,commit,upload.iterdir(),a.notes_file,a.publish,a.promote_main,a.replace_draft)
     else:
         print('Verified local assets ready. Push/release omitted; use --push (draft) or --push --publish.')
 

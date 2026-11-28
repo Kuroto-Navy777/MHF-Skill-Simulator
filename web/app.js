@@ -41,6 +41,7 @@ function restoreBackup(storage,raw){
 
 return {makeBackup,validateBackup,restoreBackup,validProfileState:state};
 })();
+
 // Browser state is local; all equipment and skill calculations come from the Python API.
 const $=id=>document.getElementById(id);
 const words={baseline:['旧公式ZZ基準・Rain未検証。検索結果はゲーム内での発動・入手可否を保証しません。','ZZ baseline; Rain not verified. Results do not guarantee in-game availability or activation.'],search:['自動検索','Search'],manual:['手動装備編集','Set builder'],favorites:['お気に入り','Favorites'],condition:['検索条件','Conditions'],weaponType:['武器種','Weapon type'],sex:['性別','Sex'],male:['男','Male'],female:['女','Female'],weaponMode:['武器設定','Weapon mode'],none:['武器なし','No weapon'],fixed:['固定','Fixed'],auto:['自動選択','Auto select'],sigils:['確保シジル枠','Reserved sigil slots'],rarity:['最大レア度','Max rarity'],weaponCategory:['武器系統','Weapon category'],all:['すべて','All'],zenithWeapon:['辿異武器','Zenith'],evolution:['辿異進化武器','Zenith evolution'],exotic:['遷悠武器','Exotic'],gPoogie:['G級プーギー','G-rank Poogie'],pClothes:['Pカフ対応服','P-cuff clothes'],skills:['スキル選択','Skills'],skillQuery:['日英スキル名で検索','Search JP/EN skills'],addRequired:['必須に追加','Add required'],addOptional:['任意に追加','Add optional'],required:['必須スキル','Required skills'],optional:['任意スキル優先','Optional skills'],objective:['検索目的','Objective'],minJewels:['追加珠数最小','Minimize added jewels'],maxSkills:['発動スキル数','Active skills'],surplus:['必須余剰最小','Minimize surplus'],limit:['最大候補数（1～30）','Max results (1–30)'],seconds:['探索秒数（1～300）','Search seconds (1–300)'],gArmor:['G級効果防具を優先対象にする','G-effect armor pool only'],fullJewels:['装飾品・カフを広く探索（時間がかかる場合あり）','Wide jewel and cuff pool (may take longer)'],equipment:['固定装備・装飾品','Fixed equipment & jewels'],fixedHint:['未指定の防具は自動検索。固定珠は維持して空き枠を探索します。','Unspecified armor is searched automatically. Fixed jewels are retained.'],cuffs:['カフ','Cuffs'],fixCuffs:['カフを固定（空なら使用しない）','Fix cuffs (empty = none)'],exclusion:['除外設定','Exclusions'],excludeItem:['個別装備を除外','Exclude item'],excludeClass:['元データ分類（複数選択可）','Source classes (multi-select)'],run:['装備検索','Search builds'],probe:['追加スキル検索','Find additional skills'],cancel:['中断','Cancel'],results:['検索結果','Results'],sort:['並び順','Sort'],rank:['検索順位','Search rank'],free:['空き装飾品枠','Free jewel slots'],head:['頭','Head'],body:['胴','Chest'],arm:['腕','Arms'],waist:['腰','Waist'],leg:['脚','Legs'],weapon:['武器','Weapon'],jewel:['装飾品','Decoration'],cuff:['カフ','Cuff'],choose:['選択','Select'],clear:['解除','Clear'],addJewel:['固定珠を追加','Add fixed jewel'],level:['強化段階','Level'],latest:['最終段階','Max level'],noSelection:['未指定','Not selected'],addCuff:['カフ追加','Add cuff'],searching:['検索中','Searching'],loading:['読み込み中','Loading'],evaluate:['スキル計算','Evaluate'],detail:['装備とポイントの詳細','Equipment & point details'],edit:['手動編集に読み込む','Load in set builder'],save:['お気に入り登録','Save favorite'],remove:['削除','Remove'],copy:['構成JSONをコピー','Copy build JSON'],points:['ポイント','Points'],status:['判定','Status'],active:['発動','Active'],not_reached:['未到達','Not reached'],overflow:['枠外','Slot overflow'],overlap:['効果重複','Overlapping'],wrong_weapon:['武器種不一致','Wrong weapon'],zenith:['辿異スキル','Zenith skills'],autoSkills:['自動発動','Automatic skills'],slotUse:['通常スキル枠','Skill slots'],baseMissing:['元スキル未発動','Base skill missing'],warnings:['注意事項','Warnings'],requiredMissing:['必須スキルを1つ以上指定してください。','Select at least one required skill.'],weaponMissing:['固定武器を選択してください。','Select a fixed weapon.'],manualMissing:['手動計算では強化段階を指定してください。','Choose explicit armor levels for manual calculation.'],noResults:['条件内の候補が見つかりませんでした。実現不可能とは限りません。','No result within the search scope; not proof of impossibility.'],ready:['DB接続済み','Database ready'],dbError:['DBに接続できません。READMEを確認してください。','Database unavailable. See README.'],found:['追加可能（個別）','Found (individual)'],not_found_in_budget:['制限内で未発見','Not found in budget'],not_tested:['未検証','Not tested'],already_required:['必須指定済み','Already required'],cancelled:['検索を中断しました。','Search cancelled.'],noFavorites:['保存された構成はありません。','No saved builds.'],saved:['保存しました。','Saved.'],copied:['コピーしました。','Copied.'],weaponAlternatives:['スキル計算上の代替武器（火力同等ではありません）','Skill-equivalent weapons (not damage-equivalent)'],result_limit:['候補数上限','Result limit'],time_limit:['探索時間上限','Time limit'],model_exhausted:['設定モデル内の探索終了','Model exhausted'],partial_weapon_search:['武器探索の一部完了','Partial weapon search'],weapon_groups_searched:['武器グループ探索終了','Weapon groups searched'],solver_error:['ソルバーエラー','Solver error'],solver_invalid_candidate:['候補検証エラー','Candidate validation error'],invalid:['装着エラーあり','Invalid equipment'],valid:['実装済み装着条件を通過','Implemented slot checks passed'],probeHint:['追加スキルは個別に検証しています。同時発動を保証しません。','Additional skills are tested individually, not jointly.'],missing:['データなし','Unavailable'],fixedOnly:['固定武器か武器なしを選んでください。','Choose a fixed weapon or no weapon.']};
@@ -320,12 +321,12 @@ let pickerWeaponType=null,editingSigil=null;
 const weaponKey=w=>JSON.stringify([w.weapon_type,w.page,w.anchor]);
 if(!owned||Array.isArray(owned)||typeof owned!=='object')owned={};if(!Array.isArray(profiles))profiles=[];
 function persist(key,value){try{localStorage.setItem(key,JSON.stringify(value));desktopSnapshot();return true}catch(e){message(t('storageError')+' '+e.message);return false}}
-const profileFields=['zenithSourceRules','searchMode','sigilMode','probeScope','probeBatch','bountyGroup','bountyNumber','bountyMode','wt','sex','weaponMode','virtualSlots','virtualSlotMode','sigils','rarity','weaponCategory','objective','limit','seconds','statMode','armorLevelMode',...statKeys.map(k=>'min_'+k),...extFields];
+const profileFields=['partialJewelLocks','zenithSourceRules','searchMode','sigilMode','probeScope','probeBatch','bountyGroup','bountyNumber','bountyMode','wt','sex','weaponMode','virtualSlots','virtualSlotMode','sigils','rarity','weaponCategory','objective','limit','seconds','statMode','armorLevelMode',...statKeys.map(k=>'min_'+k),...extFields];
 const profileChecks=['gPoogie','pClothes','gArmor','fullJewels','fixCuffs','diverseArmor','dedupeEffects','ownedOnly','ownedWeaponsOnly'];
 // Snapshot UI state, not just the final build, so exclusions and optional weights survive.
 function snapshot(){return JSON.parse(JSON.stringify({fields:Object.fromEntries(profileFields.map(k=>[k,$(k).value])),checks:Object.fromEntries(profileChecks.map(k=>[k,$(k).checked])),required,optional,forbidden,armor,weapon,cuffs,excluded,classes:[...$('classes').selectedOptions].map(x=>x.value)}))}
 function renderProfiles(){const s=$('profileSelect'),old=s.value;s.replaceChildren(option('',t('noProfile')),...profiles.map((p,i)=>option(String(i),p.name)));if(old&&profiles[Number(old)])s.value=old;$('loadProfile').disabled=$('deleteProfile').disabled=!s.value}
-function applyProfileState(x){restoreExternal();$('bountyGroup').value=x.fields.bountyGroup||'';fillBountyNumbers(x.fields.bountyNumber);for(const k of profileFields)if(k in x.fields)$(k).value=x.fields[k];else if(k==='zenithSourceRules')$(k).value='{}';else if(k==='searchMode')$(k).value='fixed';else if(k==='sigilMode')$(k).value='fixed';else if(k.startsWith('min_'))$(k).value='';else if(k==='statMode')$(k).value='adjusted';else if(k==='armorLevelMode')$(k).value='first';updateRoadCost();refreshBounty();for(const k of profileChecks)$(k).checked=!!x.checks[k];({required,optional,armor,weapon,cuffs,excluded}=JSON.parse(JSON.stringify(x)));forbidden=JSON.parse(JSON.stringify(x.forbidden||[]));for(const o of $('classes').options)o.selected=x.classes.includes(o.value);renderSkills();renderExcluded();renderEquipment()}
+function applyProfileState(x){restoreExternal();$('bountyGroup').value=x.fields.bountyGroup||'';fillBountyNumbers(x.fields.bountyNumber);for(const k of profileFields)if(k in x.fields)$(k).value=x.fields[k];else if(k==='zenithSourceRules'||k==='partialJewelLocks')$(k).value='{}';else if(k==='searchMode')$(k).value='fixed';else if(k==='sigilMode')$(k).value='fixed';else if(k.startsWith('min_'))$(k).value='';else if(k==='statMode')$(k).value='adjusted';else if(k==='armorLevelMode')$(k).value='first';updateRoadCost();refreshBounty();for(const k of profileChecks)$(k).checked=!!x.checks[k];({required,optional,armor,weapon,cuffs,excluded}=JSON.parse(JSON.stringify(x)));forbidden=JSON.parse(JSON.stringify(x.forbidden||[]));for(const o of $('classes').options)o.selected=x.classes.includes(o.value);renderSkills();renderExcluded();renderEquipment()}
 function restoreProfile(p){switchTab('search');applyProfileState(p.state);message(t('saved'));scheduleLive()}
 $('restoreLast').onclick=()=>{const state=sessionRead(LAST_SEARCH);if(validProfileState(state))restoreProfile({state})};$('resumeJob').onclick=resumeSearch;
 $('profileSelect').onchange=()=>{$('loadProfile').disabled=$('deleteProfile').disabled=!$('profileSelect').value};
@@ -676,6 +677,7 @@ let probeNextOffset=0,probePlanKey=null,probeAnchor=null;
 Object.assign(words,{proven_infeasible:['不成立を証明済み（現在の対応範囲）','Proven infeasible in current supported scope'],data_incomplete:['未対応データのため成立可否未確定','Undetermined due to unresolved data'],unknown:['未確定','Unknown'],probe_complete:['追加検索完了','Additional search complete'],probe_partial:['追加検索完了（一部未探索）','Additional search complete (partly untested)'],searchComplete:['検索完了','Search complete'],input_conflict:['入力エラー','Input error']});
 async function applyProbeScope(){
  const scope=$('probeScope').value;
+ if(scope==='current')return;
  if(scope==='all'){armor={};weapon=null;cuffs=[];$('weaponMode').value='auto';$('searchMode').value='automatic';$('fixCuffs').checked=false;renderEquipment();return;}
  const h=(result?.auto_candidates===undefined?result?.results?.[0]:result?.results?.find(x=>x.witness)?.witness)||(typeof probeAnchor!=='undefined'?probeAnchor:null);
  const next={};
@@ -689,6 +691,7 @@ async function applyProbeScope(){
 function probeRequest(original){
  const b=structuredClone(original),scope=$('probeScope').value;
  const key=liveSpec(original).key+'|'+scope;if(probePlanKey!==key){probeNextOffset=0;probePlanKey=key;}
+ if(scope==='current'){b.probe={seconds:b.seconds,candidate_limit:Number($('probeBatch').value),offset:probeNextOffset||0};return b;}
  if(scope!=='all'){
   const h=(result?.auto_candidates===undefined?result?.results?.[0]:result?.results?.find(x=>x.witness)?.witness)||(typeof probeAnchor!=='undefined'?probeAnchor:null);
   const a={...(h?.build?.armor||{}),...(b.armor||{})};if(Object.keys(a||{}).length!==5)throw Error('維持する防具構成がありません。装備検索で構成を取得してください。');
@@ -715,6 +718,133 @@ $('weaponMode').value='auto';$('gArmor').checked=false;$('armorLevelMode').value
 translate();updateRoadCost();$('run').disabled=$('probe').disabled=true;(async()=>{try{const h=await api('/api/health');if(!h.ready)throw Error(h.detail);$('health').textContent=`${t('ready')} · ${h.counts.equipment.toLocaleString()} equipment · ${h.counts.ferias_weapons.toLocaleString()} weapons · ${h.master?(lang==='ja'?'統合DB':'Master DB'):(lang==='ja'?'従来DB':'Legacy DB')}${h.version?' · v'+h.version:''}`;skillReference=await api('/api/skill-reference');skills=skillReference.filter(s=>s.points>0||s.ja==='青魂');await loadBounties();$('classes').replaceChildren(...(await api('/api/classes')).map(x=>option(x,x)));renderSkills();busy(false);desktopInitialized=true;restoreSavedViews();desktopReady();startPrecomputed();if(activeRecord())await resumeSearch();else scheduleLive()}catch(e){$('health').textContent=t('dbError')+' '+e.message;$('run').disabled=true;$('probe').disabled=true}})();
 
 // Native desktop settings. Browser-only mode never exposes the native bridge controls.
+// Partial construction uses the existing editor and the same candidate scopes.
+// Unlocked preview decorations are never silently converted to hard constraints.
+const partialUI={epoch:0,timer:null,key:null,lastMode:null};
+const partialPins=()=>JSON.parse($('partialJewelLocks').value||'{}');
+const partialMode=()=>tab==='manual'?'manual':$('searchMode').value==='automatic'&&$('weaponMode').value==='auto'?'automatic':'partial';
+function setPartialPins(value){$('partialJewelLocks').value=JSON.stringify(value);}
+const partialOriginalMakeBuild=makeBuild;
+makeBuild=function(search,preview=false){
+ const b=partialOriginalMakeBuild(search,preview);
+ if(search&&b.search_mode!=='automatic'){
+  for(const [p,a] of Object.entries(armor))if(b.armor[p])b.armor[p].jewels=a.jewels.filter(j=>j.locked!==false).map(j=>j.id);
+  if(b.weapon&&!b.auto_weapon)b.weapon.jewels=(weapon?.jewels||[]).filter(j=>j.locked!==false).map(j=>j.id);
+  const pins=partialPins();if(Object.values(pins).some(a=>a.length))b.pinned_jewels=Object.fromEntries(Object.entries(pins).map(([p,a])=>[p,a.map(j=>j.id)]));
+  if(!$('fixCuffs').checked){const fixed=cuffs.filter(c=>c.locked!==false).map(c=>c.id);if(fixed.length)b.fixed_cuffs=fixed;}
+ }
+ return b;
+};
+function editPartial(){if(tab==='search'){$('searchMode').value='fixed';$('probeScope').value='current';}renderEquipment();}
+function decorationUnits(a){
+ if(a.virtual)return Number($('virtualSlots').value);
+ if(a.levels)return a.levels.find(l=>l.level===a.level)?.slots??0;
+ return a.slots_reported??a.slots??0;
+}
+jewelsUI=function(a){
+ const root=el('div',null,'partial-sockets');let start=0;const capacity=a===weapon&&!['shared','decoration'].includes(a.slot_mode)?0:decorationUnits(a),sigils=a===weapon&&a.slot_mode==='shared'?Number($('sigils').value):0;
+ for(let i=0;i<a.jewels.length;i++){
+  const jewel=a.jewels[i],size=jewel.slots??1,line=el('div',null,'partial-socket');
+  line.append(el('span',`${lang==='ja'?'枠':'Slots'} ${start+1}${size>1?'–'+(start+size):''} · ${name(jewel)} (${size})`));start+=size;
+  const fixed=el('input');fixed.type='checkbox';fixed.checked=jewel.locked!==false;fixed.setAttribute('aria-label',`固定 ${name(jewel)}`);fixed.onchange=()=>{jewel.locked=fixed.checked;editPartial()};const label=el('label');label.hidden=tab==='manual';label.append(fixed,el('span',lang==='ja'?'固定':'Lock'));
+  line.append(label,button(lang==='ja'?'変更':'Change',()=>pick('jewel',r=>{a.jewels[i]={...r,locked:true};editPartial()})),button(t('remove'),()=>{a.jewels.splice(i,1);editPartial()}));root.append(line);
+ }
+ for(let i=start;i<Math.max(start,capacity-sigils);i++)root.append(button(`${lang==='ja'?'空き枠':'Empty slot'} ${i+1}`,()=>pick('jewel',r=>{a.jewels.push({...r,locked:true});editPartial()})));
+ if(start>=capacity-sigils)root.append(button(t('addJewel'),()=>pick('jewel',r=>{a.jewels.push({...r,locked:true});editPartial()})));
+ if(sigils)root.append(el('small',`${t('sigils')}: ${sigils}`,'muted'));
+ if(a===weapon&&a.slot_mode==='sigil')root.append(el('small',`シジル専用枠 ${decorationUnits(a)} · 装飾品使用不可`,'muted'));
+ return root;
+};
+function renderPartialLocks(){
+ const pins=partialPins(),root=$('partialDetachedLocks');root.replaceChildren();root.hidden=partialMode()!=='partial';
+ for(const [part,items] of Object.entries(pins))for(let i=0;i<items.length;i++){
+  const line=el('div',null,'partial-socket');line.append(el('span',`${t(part)} · ${name(items[i])} · ${lang==='ja'?'珠固定・装備は自動':'Locked jewel; equipment automatic'}`),button(lang==='ja'?'変更':'Change',()=>pick('jewel',r=>{items[i]=r;setPartialPins(pins);editPartial()})),button(t('clear'),()=>{items.splice(i,1);setPartialPins(pins);editPartial()}));root.append(line);
+ }
+}
+const partialOriginalEquipment=renderEquipment;
+renderEquipment=function(){
+ partialOriginalEquipment();if(!$('buildMode'))return;
+ const mode=partialMode();$('buildMode').value=mode;
+ if(mode==='partial'&&partialUI.lastMode==='automatic'&&$('probeScope').value==='all')$('probeScope').value='current';partialUI.lastMode=mode;
+ const root=$('cuffRows');root.replaceChildren();
+ cuffs.forEach((c,i)=>{
+  const line=el('div',null,'partial-socket'),check=el('input');check.type='checkbox';check.checked=$('fixCuffs').checked||c.locked!==false;check.setAttribute('aria-label',`カフ固定 ${name(c)}`);
+  check.onchange=()=>{if($('fixCuffs').checked){for(const x of cuffs)x.locked=true;$('fixCuffs').checked=false;}c.locked=check.checked;editPartial()};const label=el('label');label.hidden=tab==='manual';label.append(check,el('span',lang==='ja'?'固定':'Lock'));
+  line.append(el('span',`${name(c)} · ${c.slots??'?'} ${t('slotsLabel')}`),label,button(lang==='ja'?'変更':'Change',()=>pick('cuff',r=>{cuffs[i]={...r,locked:true};editPartial()})),button(t('remove'),()=>{cuffs.splice(i,1);editPartial()}));root.append(line);
+ });
+ root.append(button(t('addCuff'),()=>pick('cuff',r=>{if(cuffs.length<2){cuffs.push({...r,locked:true});$('fixCuffs').checked=false;editPartial()}})));
+ renderPartialLocks();schedulePartialCurrent();
+};
+function partialHitControls(hit){
+ const section=el('details',null,'partial-placement');section.append(el('summary',lang==='ja'?'固定珠・自動配置と個別固定':'Locked and automatic decorations'));
+ let request;try{request=makeBuild(true,true)}catch{return section;}
+ for(const part of [...parts,'weapon']){
+  const a=part==='weapon'?hit.build.weapon:hit.build.armor?.[part];if(!a)continue;
+  const fixed=new Map();const configured=part==='weapon'?request.weapon:request.armor?.[part];
+  for(const j of [...(configured?.jewels||[]),...(request.pinned_jewels?.[part]||[])])fixed.set(j,(fixed.get(j)||0)+1);
+  let start=0;
+  for(const id of a.jewels||[]){
+   const item=hit.display?.items?.[id]||{id,ja:id},size=item.slots??1,locked=(fixed.get(id)||0)>0;if(locked)fixed.set(id,fixed.get(id)-1);
+   const line=el('div',null,'partial-socket');line.append(el('span',`${t(part)} ${start+1}${size>1?'–'+(start+size):''} · ${name(item)} · ${locked?(lang==='ja'?'固定':'Locked'):(lang==='ja'?'自動':'Automatic')}`));start+=size;
+   if(!locked)line.append(button(lang==='ja'?'この珠を固定':'Lock this jewel',()=>{const now=partialPins();(now[part]??=[]).push({...item,id});setPartialPins(now);$('searchMode').value='fixed';if(part==='weapon'&&$('weaponMode').value==='none')$('weaponMode').value='auto';editPartial()}));section.append(line);
+  }
+ }
+ const lockedCuffs=new Map();for(const id of request.cuffs||request.fixed_cuffs||[])lockedCuffs.set(id,(lockedCuffs.get(id)||0)+1);
+ for(const id of hit.build.cuffs||[]){const item=hit.display?.items?.[id]||{id,ja:id},locked=(lockedCuffs.get(id)||0)>0;if(locked)lockedCuffs.set(id,lockedCuffs.get(id)-1);const line=el('div',null,'partial-socket');line.append(el('span',`${t('cuffs')} · ${name(item)} · ${locked?'固定':'自動'}`));if(!locked)line.append(button(lang==='ja'?'このカフを固定':'Lock this cuff',()=>{cuffs=cuffs.filter(c=>c.locked!==false);if(cuffs.length>=2){message('カフ固定は2個までです。既存の固定を解除してください。');return;}cuffs.push({...item,id,locked:true});$('fixCuffs').checked=false;editPartial()}));section.append(line);}
+ section.append(el('p',lang==='ja'?'自動の珠・カフは次のスキル追加時に再最適化します。珠だけの固定では防具は固定しません。':'Automatic decorations/cuffs remain free to change. Locking a jewel does not lock armor.','muted'));
+ return section;
+}
+const partialOriginalHit=renderHit;
+renderHit=function(hit,index){const card=partialOriginalHit(hit,index);if(tab==='search')card.append(partialHitControls(hit));return card;};
+async function updatePartialCurrent(epoch,request){
+ try{
+  const result=await api('/api/partial/evaluate','POST',request);if(epoch!==partialUI.epoch)return;
+  const root=$('partialCurrentBody');root.replaceChildren();const r=result.evaluation,used=result.equipment_slots.reduce((n,s)=>n+s.used,0),free=result.equipment_slots.reduce((n,s)=>n+s.free,0);
+  $('partialCurrentStatus').textContent=`${r.valid?'装着可':'装着エラー'} · 珠 ${used} 使用 / ${free} 空き · カフ ${r.slots.cuff_used}/2（個数 ${result.build.cuffs.length}/2） · 通常スキル ${r.slots.used}/${r.slots.capacity} · 未指定防具 ${result.unselected_armor.length}`;
+  for(const s of result.equipment_slots)root.append(el('p',`${t(s.part)}: ${s.used}/${s.capacity} · ${s.free} 空き${s.sigils?' · シジル '+s.sigils:''}`,'muted'));
+  if(Object.keys(result.pending_decorations).length)root.append(el('p','未指定装備への固定珠は候補探索時に装着します。現在値には未装着の珠を加算しません。','muted'));
+  if(result.unselected_armor.length)root.append(el('p','通常スキル枠は現在指定した装備だけの値です。未指定装備・カフの補完後に変化します。','muted'));
+  if(r.errors.length)root.append(el('p',r.errors.join(' / '),'warning'));
+  const table=el('table');row(table,['スキル','現在P','必要P / 次段階','不足P','余剰P','発動状態'],true);
+  for(const s of result.points)row(table,[s.ja,s.points,s.required,s.missing,s.surplus,s.satisfied?'発動':t(s.status)]);root.append(table);
+  const joint=el('p',null,'muted');joint.id='partialJointSkills';joint.textContent='追加可能な各スキルは個別の成立確認です。同時追加は希望スキルをすべて必須に指定してください。候補カードに同時発動する構成を表示します。';root.append(joint);
+  paintPartialJoint();
+ }catch(e){if(epoch===partialUI.epoch){$('partialCurrentStatus').textContent=e.message;$('partialCurrentBody').replaceChildren();}}
+}
+function schedulePartialCurrent(){
+ if(!$('partialCurrent')||!live.ready)return;const visible=['search','manual'].includes(tab)&&partialMode()!=='automatic';$('partialCurrent').hidden=!visible;
+ if(!visible){partialUI.key=null;partialUI.epoch++;clearTimeout(partialUI.timer);return;}
+ let request;try{request=makeBuild(tab!=='manual',true);request.required=required.map(s=>({skill:s.id,points:s.points}));}catch(e){partialUI.key=null;partialUI.epoch++;clearTimeout(partialUI.timer);$('partialCurrentStatus').textContent=e.message;$('partialCurrentBody').replaceChildren();return;}
+ const key=JSON.stringify(request);if(key===partialUI.key)return;partialUI.key=key;const epoch=++partialUI.epoch;clearTimeout(partialUI.timer);$('partialCurrentStatus').textContent='現在の指定装備を計算中…';partialUI.timer=setTimeout(()=>updatePartialCurrent(epoch,request),80);
+}
+const partialOriginalSchedule=scheduleLive;
+scheduleLive=function(){partialOriginalSchedule();schedulePartialCurrent();};
+const partialOriginalClear=clearAllFixes;
+clearAllFixes=function(){setPartialPins({});partialOriginalClear();};
+$('clearAllFixes').onclick=()=>clearAllFixes();
+$('virtualSlots').onchange=$('virtualSlotMode').onchange=()=>renderEquipment();
+$('editor').addEventListener('input',schedulePartialCurrent);$('editor').addEventListener('change',schedulePartialCurrent);
+const partialOriginalSummary=searchConstraintSummary;
+searchConstraintSummary=function(){const b=partialOriginalSummary();return b+` · 個別固定カフ ${$('fixCuffs').checked?cuffs.length:cuffs.filter(c=>c.locked!==false).length} · 珠のみ固定 ${Object.values(partialPins()).reduce((n,a)=>n+a.length,0)}`;};
+function paintPartialJoint(){
+ const root=$('partialJointSkills');if(!root||tab!=='search')return;
+ let same=false;try{same=live.spec?.key===liveSpec(makeBuild(true,true)).key}catch{}
+ if(!same||result?.auto_candidates!==undefined)return;
+ const hits=(result?.results||[]).filter(h=>h.evaluation?.valid).slice(0,3);if(!hits.length)return;
+ root.replaceChildren(el('strong','同時成立を確認した構成（個別判定の合算ではありません）'));
+ hits.forEach((h,i)=>{const r=h.evaluation;root.append(el('p',`#${i+1}: ${[...r.skills.filter(s=>['active','overlap'].includes(s.status)).map(s=>s.level_ja),...r.zenith.filter(s=>s.level>0&&s.has_base_skill!==false).map(s=>name(s))].join(' / ')}`))});
+}
+const partialOriginalResults=renderResults;
+renderResults=function(){partialOriginalResults();paintPartialJoint();};
+Object.assign(words,{source_not_met:['指定供給元が不足','Required supply source missing']});
+(function setupPartialUI(){
+ const label=el('label');label.append(el('span','装備構築モード'));const select=el('select');select.id='buildMode';select.append(option('automatic','完全自動検索'),option('partial','部分固定装備検索'),option('manual','完全手動装備編集'));label.append(select);document.querySelector('.workspace-quick').prepend(label);
+ $('searchMode').closest('label').hidden=true;
+ select.onchange=()=>{const mode=select.value;if(mode==='manual'){switchTab('manual');renderEquipment();return;}if(tab!=='search')switchTab('search');if(mode==='automatic')clearAllFixes();else{$('searchMode').value='fixed';$('probeScope').value='current';renderEquipment();}};
+ const section=el('section',null,'panel full');section.id='partialCurrent';section.hidden=true;const head=el('h3','現在の部分装備'),status=el('p');status.id='partialCurrentStatus';status.setAttribute('role','status');const details=el('details');details.append(el('summary','ポイント・不足・余剰と枠の詳細'));const body=el('div');body.id='partialCurrentBody';details.append(body);section.append(head,status,details);$('workspaceOverview').after(section);
+ const locks=el('div');locks.id='partialDetachedLocks';$('armorRows').before(locks);
+})();
+
 (function desktopInformation(){
   const tr=(ja,en)=>lang==='ja'?ja:en;
   const bridge=()=>window.pywebview?.api;

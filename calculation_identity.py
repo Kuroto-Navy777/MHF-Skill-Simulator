@@ -3,8 +3,8 @@ import hashlib,json,sys
 from pathlib import Path
 from runtime_paths import app_root
 SCHEMA_VERSION=140
-CALCULATION_ABI='140.1'
-CALCULATION_FILES=('precompute_distribution.py','data_packages.py','calculation_identity.py','candidate_service.py','activation.py','skill_engine.py','search_contract.py','candidate_validation.py','search_engine.py','weapon_effects.py','external.py','bounty.py','defense.py','armor_levels.py','search_precompute.py','search_archive.py')
+CALCULATION_ABI='140.2'
+CALCULATION_FILES=('partial_build.py','inventory.py','precompute_distribution.py','data_packages.py','calculation_identity.py','candidate_service.py','activation.py','skill_engine.py','search_contract.py','candidate_validation.py','search_engine.py','weapon_effects.py','external.py','bounty.py','defense.py','armor_levels.py','search_precompute.py','search_archive.py')
 
 def calculation_identity(root=None):
  root=Path(root or app_root())

@@ -227,6 +227,17 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
         except (ValueError,KeyError,TypeError,sqlite3.Error) as e:
             raise HTTPException(400,str(e)) from e
 
+    @app.post('/api/partial/evaluate')
+    def evaluate_partial(payload:dict):
+        if len(json.dumps(payload))>150000:raise HTTPException(400,'partial build too large')
+        from partial_build import current
+        try:
+            with candidates.lock:
+                reader=candidates._ready();reply=current(reader,payload)
+            with closing(connect(db_path)) as db:reply['display']=enrich(db,reply['build'])
+            return reply
+        except (ValueError,KeyError,TypeError,sqlite3.Error) as exc:raise HTTPException(400,str(exc)) from exc
+
     # Shared builds are canonicalized and recalculated locally; never trust cached points.
     @app.post('/api/share/import')
     def share_import(payload:dict):
@@ -377,6 +388,12 @@ def create_app(db_path, game_priority=None, candidate_cache_path=None):
             for h in result.get('results',[]):
                 item=h.get('witness',h)
                 if 'build' in item: item['display']=enrich(db,item['build'])
+        from partial_build import placements
+        with candidates.lock:
+            reader=candidates._ready();prepared=reader.prepare_request(j.get('client_request',{}))
+            for hit in result.get('results',[]):
+                item=hit.get('witness',hit)
+                if 'build' in item:item['placement']=placements(reader,prepared,item['build'])
         if result.get('certificate'):
             cert=result['certificate'];signature=hmac.new(j['proof_key'],json.dumps(cert,sort_keys=True,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
             trusted=hmac.compare_digest(signature,result.get('proof_auth','')) and candidates.archive and cert.get('calculation')==candidates.archive.calculation and cert.get('source')==j.get('db_identity')

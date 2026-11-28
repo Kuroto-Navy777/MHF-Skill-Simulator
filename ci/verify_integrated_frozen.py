@@ -25,17 +25,20 @@ def verify(archive,db,report_path):
   pyz=c.open_embedded_archive(next(n for n in c.toc if n.endswith('.pyz')))
   modules=['search_engine','search_contract','skill_engine','weapon_effects','candidate_validation','candidate_reader','candidate_pool','candidate_service','web_api']
   if (ROOT/'VERSION').read_text().strip()>='1.4.0':
-   modules+=['calculation_identity','search_archive','search_precompute','data_packages','precompute_distribution','precompute_idle']
+   modules+=['partial_build','inventory','calculation_identity','search_archive','search_precompute','data_packages','precompute_distribution','precompute_idle']
   for name in modules:
    assert normalized(pyz.extract(name))==normalized(compile((ROOT/(name+'.py')).read_text(encoding='utf-8'),name+'.py','exec',optimize=0)),name
   result['compiled_modules_match']=modules
   fixtures=json.loads((ROOT/'ci/v120_regression_builds.json').read_text(encoding='utf-8'))
   with sqlite3.connect(db.resolve().as_uri()+'?mode=ro',uri=True) as conn:
    reader=CandidateReader(conn)
-   for name,key,mode,limit,seconds in [('fixed16','road16','fixed',1,12),('fully_automatic15','road15','automatic',3,20)]:
+   for name,key,mode,limit,seconds in [('fixed16','road16','fixed',1,12),('fully_automatic15','road15','automatic',3,20),('partial_locks','road16','partial',1,15)]:
     f=fixtures[key];q=copy.deepcopy(f['build']);q.pop('cuffs',None)
     for a in q['armor'].values():a['jewels']=[]
     q.update(search_mode=mode,auto_weapon=True,integrated_weapon=True,sigil_mode='auto',weapon={'sigils':0,'jewels':[]},required=f['required'],seconds=seconds,limit=limit,diverse_armor=True,armor_level_mode='first',search_strategy='adaptive',structured_outcomes=True)
+    if mode=='partial':
+     q['armor']={'head':copy.deepcopy(f['build']['armor']['head'])};q['armor']['head']['jewels']=q['armor']['head']['jewels'][:1]
+     q['pinned_jewels']={'leg':[f['build']['armor']['leg']['jewels'][0]]};q['fixed_cuffs']=['cuff:1:1185'];q['required']=f['required'][:4]
     request=folder/(name+'.request.json');out=folder/(name+'.out.json');log=folder/(name+'.log')
     request.write_text(json.dumps(q,ensure_ascii=False),encoding='utf-8')
     proc=subprocess.run([str(exe),'--search-worker','--db',str(db.resolve()),'--request',str(request),'--out',str(out),'--worker-log',str(log)],timeout=90)

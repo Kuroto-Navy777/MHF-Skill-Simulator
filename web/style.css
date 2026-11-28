@@ -49,3 +49,6 @@ main{max-width:1440px}.workspace-tabs{display:flex;flex-wrap:wrap;gap:8px;margin
 .skill-list-row.skill-proven .live-skill-count{color:#f29a9a}
 .skill-list-row.skill-unknown .live-skill-count{color:#a8b4c1}
 #zenithSourcePanel:empty{display:none}
+.partial-socket{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;margin:.35rem 0;padding:.4rem;border:1px solid var(--border,#344959);border-radius:.35rem}
+.partial-socket>span{flex:1;min-width:12rem}.partial-socket label{display:flex;align-items:center;gap:.3rem}.partial-socket button{padding:.3rem .55rem}
+.partial-sockets{display:flex;flex-direction:column;gap:.25rem}.partial-placement{margin-top:.6rem}#partialCurrentBody{overflow-x:auto}

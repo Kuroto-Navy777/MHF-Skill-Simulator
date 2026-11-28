@@ -118,13 +118,16 @@ class SearchContract:
         req=copy.deepcopy(req)
         if req.get('sigil_mode') not in (None,'auto','fixed'):raise ValueError('invalid sigil mode')
         mode=req.get('search_mode')
-        if mode not in (None,'automatic','fixed'):raise ValueError('invalid search mode')
+        if mode not in (None,'automatic','fixed','partial'):raise ValueError('invalid search mode')
         if mode=='automatic':
             req['armor']={};req.pop('cuffs',None)
+            req.pop('fixed_cuffs',None);req.pop('pinned_jewels',None)
             req['weapon']={k:v for k,v in req.get('weapon',{}).items() if k=='sigils'}
             req['auto_weapon']=True;req['integrated_weapon']=True
             req.setdefault('g_poogie',True);req.setdefault('premium_poogie_clothes',True)
             req.setdefault('g_armor_only',False)
+        from partial_build import normalize as normalize_partial
+        req=normalize_partial(req,self.e)
         if req.get('sigil_mode')=='auto' and req.get('integrated_weapon') and not req.get('auto_weapon') and req.get('weapon',{}).get('page'):
             selector={k:req['weapon'][k] for k in ('page','anchor')}
             if 'weapon_candidates' in req and selector not in req['weapon_candidates']:raise ValueError('fixed weapon outside allowlist')

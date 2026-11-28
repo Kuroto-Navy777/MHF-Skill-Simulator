@@ -20,7 +20,7 @@ def condition_key(req):
  if not any(external['road'].values()):external['road_floor']=1
  value['external']=external
  if value.get('search_mode')=='automatic':
-  value['armor']={};value.pop('cuffs',None);value['weapon']={'sigils':value.get('weapon',{}).get('sigils',0)}
+  value['armor']={};value.pop('cuffs',None);value.pop('fixed_cuffs',None);value.pop('pinned_jewels',None);value['weapon']={'sigils':value.get('weapon',{}).get('sigils',0)}
   value['auto_weapon']=True;value['integrated_weapon']=True;value.setdefault('g_poogie',True);value.setdefault('premium_poogie_clothes',True);value.setdefault('g_armor_only',False)
  for key in ('exclude','exclude_classes','armor_candidates','jewel_limits','cuff_limits','min_stats'):
   if key in value and not value[key]:value.pop(key)
@@ -211,7 +211,7 @@ class SearchArchive:
     if req.get('diverse_armor',True) and row['armor_key'] in seen:continue
     hit=self._hit(row)
     if hit is None:continue
-    hit['new_jewels']=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})])-sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})]);hit['archive_variant_count']=index.group_count(mask,row['armor_key']);selected.append(hit);seen.add(row['armor_key'])
+    hit['new_jewels']=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})])-__import__('partial_build').fixed_count(req);hit['archive_variant_count']=index.group_count(mask,row['armor_key']);selected.append(hit);seen.add(row['armor_key'])
     if len(selected)>=limit:break
    distinct=len({index.rows[i]['armor_key'] for i in positions})
    return {'status':'confirmed' if selected else 'unexplored','results':selected,'confirmed_builds':mask.bit_count(),
@@ -229,7 +229,7 @@ class SearchArchive:
     if mask&(1<<i) and r['identity']!=skip:
      hit=self._hit(r)
      if hit:
-      hit['new_jewels']=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})])-sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})]);hits.append(hit)
+      hit['new_jewels']=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})])-__import__('partial_build').fixed_count(req);hits.append(hit)
      if len(hits)>=limit:break
    return {'results':hits,'variant_count':index.group_count(mask,key)-(1 if skip and any(index.rows[i]['identity']==skip and mask&(1<<i) for i in positions) else 0),'complete_game_search':False}
  def cross_scope(self,req,limit=96):

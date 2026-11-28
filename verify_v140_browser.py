@@ -40,6 +40,27 @@ def main():
   assert page.locator('.skill-confirmed').count()>0
   assert page.locator('.skill-proven').count()>0
   assert page.locator('.skill-unknown').count()>0
+  # Partial editor: one fixed armor, one fixed jewel, one fixed one-slot cuff,
+  # four free armor parts and a virtual weapon. Execute the actual search button.
+  metadata=client.post('/api/evaluate',json=build).json()['display']['items']
+  levels=client.get('/api/levels',params={'id':build['armor']['head']['item']}).json()
+  cuff=client.get('/api/catalog',params={'kind':'cuff','q':'研ぎ師カフＰＣ１','page_size':40}).json()['items'][0]
+  normalized=[dict(zip(('skill','points'),service.searcher.requirement(t))) for t in fixtures['road16']['required']]
+  page.evaluate("""data=>{live.enabled=false;$('liveToggle').checked=false;required=data.required.slice(0,4).map(x=>skills.find(s=>s.id===x.skill&&s.points===x.points));optional=[];forbidden=[];const a=data.build.armor.head;armor={head:{id:a.item,...data.items[a.item],level:a.level,levels:data.levels,jewels:a.jewels.slice(0,1).map(id=>({id,...data.items[id],locked:true}))}};weapon={virtual:true,slots:3,slot_mode:'shared',jewels:[]};cuffs=[{...data.cuff,locked:true}];setPartialPins({});$('weaponMode').value='virtual';$('virtualSlots').value='3';$('virtualSlotMode').value='shared';$('sigils').value='1';$('sigilMode').value='fixed';$('fixCuffs').checked=false;$('searchMode').value='fixed';$('probeScope').value='current';$('gPoogie').checked=true;$('pClothes').checked=true;renderSkills();renderEquipment()}""",{'build':build,'items':metadata,'levels':levels,'required':normalized,'cuff':cuff})
+  page.wait_for_function("$('partialCurrentStatus').textContent.includes('未指定防具 4')")
+  assert page.locator('#buildMode').input_value()=='partial'
+  assert page.evaluate("makeBuild(true,true).fixed_cuffs.length===1 && !('cuffs' in makeBuild(true,true))")
+  page.locator('#run').click();page.wait_for_function("!$('run').disabled && result?.results?.length>0 && result.results[0].build.weapon?.virtual",timeout=45000)
+  req=page.evaluate('makeBuild(true,true)');hit=page.evaluate('result.results[0]')
+  assert hit['build']['armor']['head']['item']==req['armor']['head']['item']
+  assert set(req['armor']['head']['jewels'])<=set(hit['build']['armor']['head']['jewels'])
+  assert cuff['id'] in hit['build']['cuffs'];assert hit['build']['weapon']['sigils']==1
+  card=page.locator('.partial-placement').first;card.locator('summary').click();card.get_by_role('button',name='この珠を固定',exact=True).first.click()
+  assert page.evaluate("Object.values(makeBuild(true,true).pinned_jewels).flat().length===1 && Object.keys(makeBuild(true,true).armor).length===1")
+  saved=page.evaluate('JSON.stringify(makeBuild(true,true))');page.locator('#buildMode').select_option('manual');assert page.evaluate("tab==='manual'")
+  page.locator('#buildMode').select_option('partial');assert page.evaluate('JSON.stringify(makeBuild(true,true))')==saved
+  page.locator('#clearAllFixes').click();assert page.evaluate("Object.keys(partialPins()).length===0 && Object.keys(makeBuild(true,true).armor).length===0 && !makeBuild(true,true).fixed_cuffs")
+  print('1.4.0 partial: actual search preserves armor/jewel/cuff/sigil locks, auto jewel pin leaves armor free, manual/search state restoration and complete reset passed',flush=True)
   timing=page.evaluate("""h=>{result={status:'confirmed',results:[h],confirmed_builds:1};const samples={paint:[],display:[],display_cards:1};for(let i=0;i<20;i++){let start=performance.now();paintLiveCounts();samples.paint.push(performance.now()-start);start=performance.now();renderResults();samples.display.push(performance.now()-start)}if($('resultCards').querySelectorAll('article.result').length!==1)throw Error('Result card expected');return samples}""",{'build':build,'evaluation':report})
   (ROOT/'.local/v140-browser-timings.json').write_text(json.dumps(timing,indent=2),encoding='utf-8')
   page.screenshot(path=str(ROOT/'.local/v140-browser.png'),full_page=True)

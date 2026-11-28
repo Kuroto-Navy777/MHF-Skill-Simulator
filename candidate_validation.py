@@ -5,6 +5,7 @@ from defense import satisfies
 from external import normalize
 from skill_engine import PARTS,WEAPON_SECRET
 from bounty import rules,item_allowed,banned_skill
+from partial_build import fixed_jewels as locked_jewels
 
 
 def validate(searcher,req,build):
@@ -40,7 +41,7 @@ def validate(searcher,req,build):
                 require(any(t=='Ｇ級効果' for t,v in s.abilities.get(item,[])),'G armor filter: '+p)
             level=cfg.get('level') or endpoint(s.levels[item],req.get('armor_level_mode','max'))[0]
             require(a['level']==level,'armor level: '+p)
-            fixed=Counter(eid(x,'jewel') for x in cfg.get('jewels',[]))
+            fixed=Counter(eid(x,'jewel') for x in locked_jewels(req,p))
             actual=Counter(eid(x,'jewel') for x in a.get('jewels',[]))
             require(fixed<=actual,'fixed jewels: '+p);fixed_jewels.update(fixed);actual_jewels.update(actual)
         w=build.get('weapon',{});expected=req.get('weapon',{})
@@ -60,15 +61,17 @@ def validate(searcher,req,build):
                 from weapon_effects import intrinsic_levels
                 require(not row['conflict'] and not intrinsic_levels(e,row)[1] and row['slot_mode'] in ('shared','sigil','decoration'),'supported auto weapon')
         if 'template' in w: require(allowed(eid(w['template'],'weapon_template')),'weapon template restrictions')
-        fixed=Counter(eid(x,'jewel') for x in expected.get('jewels',[]))
+        fixed=Counter(eid(x,'jewel') for x in locked_jewels(req,'weapon'))
         actual=Counter(eid(x,'jewel') for x in w.get('jewels',[]))
         require(fixed<=actual,'fixed weapon jewels');fixed_jewels.update(fixed);actual_jewels.update(actual)
         actual_cuffs=Counter(eid(x,'cuff') for x in build.get('cuffs',[]))
+        partial_cuffs=Counter(eid(x,'cuff') for x in req.get('fixed_cuffs',[]))
+        require(partial_cuffs<=actual_cuffs,'partially fixed cuffs')
         if 'cuffs' in req:
             require(actual_cuffs==Counter(eid(x,'cuff') for x in req['cuffs']),'fixed cuffs')
         for kind,counts,fixed,allow,limit in [
             ('jewel',actual_jewels,fixed_jewels,req.get('jewel_candidates'),req.get('jewel_limits',{})),
-            ('cuff',actual_cuffs,actual_cuffs if 'cuffs' in req else Counter(),req.get('cuff_candidates'),req.get('cuff_limits',{}))]:
+            ('cuff',actual_cuffs,actual_cuffs if 'cuffs' in req else partial_cuffs,req.get('cuff_candidates'),req.get('cuff_limits',{}))]:
             for item in counts: require(allowed(item),'excluded '+kind)
             if allow is not None:
                 allowed_ids={eid(x,kind) for x in allow}

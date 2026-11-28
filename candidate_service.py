@@ -58,7 +58,7 @@ class CandidateService:
                 report,reasons=validate(s,broad,build)
                 if report:
                     total=sum(len(a.get('jewels',[])) for a in list(build['armor'].values())+[build.get('weapon',{})])
-                    fixed=sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})])
+                    fixed=__import__('partial_build').fixed_count(req)
                     hits.append({'build':build,'evaluation':report,'new_jewels':total-fixed})
             self.pool.ingest(req,hits)
             if self.archive:self.archive.ingest(req,hits)
@@ -71,13 +71,13 @@ class CandidateService:
                     report,reasons=validate(s,broad,hit['build'])
                     if report:
                         total=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})])
-                        fixed=sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})])
+                        fixed=__import__('partial_build').fixed_count(req)
                         adopted.append({**hit,'evaluation':report,'new_jewels':total-fixed})
             if self.archive:
                 for hit in self.archive.cross_scope(req):
                     report,reasons=validate(s,broad,hit['build'])
                     if report:
-                        total=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})]);fixed=sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})])
+                        total=sum(len(a.get('jewels',[])) for a in list(hit['build']['armor'].values())+[hit['build'].get('weapon',{})]);fixed=__import__('partial_build').fixed_count(req)
                         adopted.append({**hit,'evaluation':report,'new_jewels':total-fixed})
             self.pool.ingest(req,adopted)
             if self.archive:self.archive.ingest(req,adopted)
@@ -124,6 +124,8 @@ class CandidateService:
             result['data_cache_hit']=s.data_cache_hit
             result['memory_bytes']=sum(x['bytes'] for x in self.pool.scopes.values())
             result['database_identity']=self.identity
+            from partial_build import placements
+            for hit in result['results']:hit['placement']=placements(s,prepared,hit['build'])
             if self.archive:self.archive.park()
             return result
 

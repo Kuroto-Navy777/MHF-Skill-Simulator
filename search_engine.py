@@ -246,7 +246,7 @@ class Searcher(SearchContract):
             if key in seen: continue
             seen.add(key)
             total=sum(len(a.get('jewels',[])) for a in list(build['armor'].values())+[build.get('weapon',{})])
-            fixed=sum(len(a.get('jewels',[])) for a in list(req.get('armor',{}).values())+[req.get('weapon',{})])
+            fixed=__import__('partial_build').fixed_count(req)
             valid.append({'build':copy.deepcopy(build),'evaluation':report,'new_jewels':total-fixed,'reused_witness':True})
         if req.get('diverse_armor') and not (req.get('collect_variants') and all(req.get('armor',{}).get(p) for p in PARTS)):
             from candidate_groups import armor_key
@@ -327,6 +327,11 @@ class Searcher(SearchContract):
                            'complete_game_search': False})
 
     def search_fixed(self, req, initial_hits=()):
+        from partial_build import fixed_jewels as locked_jewels
+        req=copy.deepcopy(req)
+        if req.get('pinned_jewels',{}).get('weapon'):
+            req.setdefault('weapon',{})['jewels']=locked_jewels(req,'weapon')
+            req['pinned_jewels'].pop('weapon')
         start=time.monotonic()
         initial_hits=initial_hits or req.get('_initial_hits',())
         level_mode=req.get('armor_level_mode','max')
@@ -425,7 +430,7 @@ class Searcher(SearchContract):
                 only=self.e.equipment(cfg['item'],part)['id']
                 if a_ids is not None and only not in a_ids: raise ValueError('fixed armor outside allowlist')
                 a_ids={only}
-            js=[self.e.equipment(k,'jewel')['id'] for k in (cfg or {}).get('jewels',[])]
+            js=[self.e.equipment(k,'jewel')['id'] for k in locked_jewels(req,part)]
             if any(not jewel_ok(k) for k in js): raise ValueError('unsupported/excluded fixed jewel')
             fixed_jewels[part]=js; used=sum(self.items[k]['slots'] for k in js)
             for k in js: plus(constant,self.points[k]); plus(constant,self.zen[k])
@@ -539,16 +544,18 @@ class Searcher(SearchContract):
         cuff_limits={self.e.equipment(k,'cuff')['id']:v for k,v in req.get('cuff_limits',{}).items()}
         if any(type(v) is not int or v<0 for v in cuff_limits.values()): raise ValueError('invalid cuff limit')
         fixed_cuffs=Counter(self.e.equipment(k,'cuff')['id'] for k in base.get('cuffs',[]))
+        partial_cuffs=Counter(self.e.equipment(k,'cuff')['id'] for k in req.get('fixed_cuffs',[]))
+        if any(partial_cuffs[k]>cuff_limits.get(k,2) for k in partial_cuffs):raise ValueError('partially fixed cuffs exceed inventory limit')
         if any(fixed_cuffs[k]>v for k,v in cuff_limits.items()): raise ValueError('fixed cuffs exceed inventory limit')
         eligible_cuff_count=0
         if 'cuffs' not in base:
             countrow={}; slotrow={}; secretrow={}; eligible_cuffs=[]
             cuff_source=self.by_kind['cuff'].items()
             if cids is None and objective!='max_skills' and not req.get('full_jewel_pool',False):
-                cuff_source=((eid,self.items[eid]) for eid in sorted(focused_ids) if self.items[eid]['kind']=='cuff')
+                cuff_source=((eid,self.items[eid]) for eid in sorted(focused_ids|set(partial_cuffs)) if self.items[eid]['kind']=='cuff')
             for eid,r in cuff_source:
-                if not permitted(r) or not supported(eid) or (cids is not None and eid not in cids): continue
-                if cids is None and objective!='max_skills' and not req.get('full_jewel_pool',False) and not relevant(eid): continue
+                if not permitted(r) or not supported(eid) or (cids is not None and eid not in cids and eid not in partial_cuffs): continue
+                if eid not in partial_cuffs and cids is None and objective!='max_skills' and not req.get('full_jewel_pool',False) and not relevant(eid): continue
                 if r['slots'] not in (0,1,2): continue
                 secret=any(t=='スキル枠消費なし' for t,v in self.abilities[eid])
                 if r['group_name']=='P' and not base.get('premium_poogie_clothes'): continue
@@ -556,7 +563,8 @@ class Searcher(SearchContract):
                 if cuff_limits.get(eid,2)>0: eligible_cuffs.append((eid,r,secret))
             eligible_cuff_count=len(eligible_cuffs)
             if fast_mode and cids is None and len(eligible_cuffs)>100:
-                eligible_cuffs=shortlist(eligible_cuffs,100,lambda a:item_score(a[0])/max(1,a[1]['slots']))
+                protected=[a for a in eligible_cuffs if a[0] in partial_cuffs]
+                eligible_cuffs=list({a[0]:a for a in protected+shortlist(eligible_cuffs,100,lambda a:item_score(a[0])/max(1,a[1]['slots']))}.values())
             for eid,r,secret in eligible_cuffs:
                 bits={}
                 for v in (1,2) if r['slots']==1 and not secret else (1,):
@@ -564,6 +572,8 @@ class Searcher(SearchContract):
                 bound=min(cuff_limits.get(eid,2),2 if r['slots']==1 and not secret else 1)
                 if sum(bits.values())>bound: model.add(bits,high=bound)
                 cuff_vars[eid]=bits
+                if eid in partial_cuffs:model.add(bits,low=partial_cuffs[eid])
+            if set(partial_cuffs)-set(cuff_vars):raise ValueError('partially fixed cuff unavailable or incompatible')
             model.add(countrow,high=2); model.add(slotrow,high=2); model.add(secretrow,high=1)
         pool_counts['cuff']=len(cuff_vars)
         bounds=DecisionBounds({**armor_vars,**({'weapon':weapon_vars} if joint else {})},jewel_vars,cuff_vars,self.items,maxslots)

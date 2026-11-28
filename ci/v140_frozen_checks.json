@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "cases": {
+    "fixed16": {
+      "status": "result_limit",
+      "elapsed_seconds": 0.328,
+      "distinct_armor": 1,
+      "rejected": 0,
+      "integrated_weapon": true
+    },
+    "fully_automatic15": {
+      "status": "result_limit",
+      "elapsed_seconds": 8.719,
+      "distinct_armor": 3,
+      "rejected": 1,
+      "integrated_weapon": true
+    },
+    "partial_locks": {
+      "status": "result_limit",
+      "elapsed_seconds": 0.187,
+      "distinct_armor": 1,
+      "rejected": 0,
+      "integrated_weapon": true
+    }
+  },
+  "compiled_modules_match": [
+    "search_engine",
+    "search_contract",
+    "skill_engine",
+    "weapon_effects",
+    "candidate_validation",
+    "candidate_reader",
+    "candidate_pool",
+    "candidate_service",
+    "web_api",
+    "partial_build",
+    "inventory",
+    "calculation_identity",
+    "search_archive",
+    "search_precompute",
+    "data_packages",
+    "precompute_distribution",
+    "precompute_idle"
+  ],
+  "precompute": {
+    "confirmed": 1,
+    "compiled_vectors": true
+  }
+}
